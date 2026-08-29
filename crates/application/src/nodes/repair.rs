@@ -16,7 +16,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     let configuration = context.configuration();
     let candidate_id = context
         .candidate_id()
-        .ok_or_else(|| ApplicationError::Internal("the repair node requires a candidate".to_string()))?
+        .ok_or_else(|| {
+            ApplicationError::Internal("the repair node requires a candidate".to_string())
+        })?
         .clone();
     let record = context
         .projection
@@ -41,10 +43,12 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
         )
         .with_patch(StatePatch {
             candidate_status: Some(heikas_domain::candidate::CandidateStatus::Ineligible),
-            exclusion_reasons: Some(vec![heikas_domain::score::ExclusionReason::RepairBudgetExhausted {
-                used: record.repairs_used,
-                budget: record.repair_budget,
-            }]),
+            exclusion_reasons: Some(vec![
+                heikas_domain::score::ExclusionReason::RepairBudgetExhausted {
+                    used: record.repairs_used,
+                    budget: record.repair_budget,
+                },
+            ]),
             ..StatePatch::default()
         }));
     }
@@ -206,7 +210,11 @@ async fn collect_evidence(
         .read_test_evidence(context.run.run_id, Some(candidate))
         .await?
     {
-        for record in tests.commands.iter().filter(|record| !record.outcome.is_pass()) {
+        for record in tests
+            .commands
+            .iter()
+            .filter(|record| !record.outcome.is_pass())
+        {
             lines.push(format!(
                 "Command `{}` finished as {}: {}",
                 record.command_id,
@@ -218,7 +226,10 @@ async fn collect_evidence(
                     "Failing test {}::{} at {}:{} reported {}",
                     failure.suite,
                     failure.case,
-                    failure.file.clone().unwrap_or_else(|| "unknown".to_string()),
+                    failure
+                        .file
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                     failure.line.unwrap_or(0),
                     truncate_for_prompt(&failure.message, 600)
                 ));
@@ -253,7 +264,8 @@ async fn collect_evidence(
         }
     }
     if lines.is_empty() {
-        lines.push("No structured gate evidence was recorded for the previous attempt.".to_string());
+        lines
+            .push("No structured gate evidence was recorded for the previous attempt.".to_string());
     }
     Ok(lines)
 }

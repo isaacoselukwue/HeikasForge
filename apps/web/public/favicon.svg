@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Heikas Forge">
+  <rect width="32" height="32" rx="7" fill="#0d1117" />
+  <path d="M9 8v16" stroke="#8b7bf7" stroke-width="3" stroke-linecap="round" />
+  <path d="M23 8v16" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+  <path d="M9 16h14" stroke="#a5b4fc" stroke-width="3" stroke-linecap="round" />
+  <circle cx="23" cy="8" r="3" fill="#38bdf8" />
+  <circle cx="9" cy="24" r="3" fill="#8b7bf7" />
+</svg>

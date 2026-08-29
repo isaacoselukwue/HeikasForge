@@ -17,21 +17,11 @@ use crate::state::ApiState;
 
 pub const MAXIMUM_REQUEST_BYTES: usize = 1_048_576;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ServerOptions {
     pub port: u16,
     pub bind_all_interfaces: bool,
     pub demonstration_mode: bool,
-}
-
-impl Default for ServerOptions {
-    fn default() -> Self {
-        Self {
-            port: 0,
-            bind_all_interfaces: false,
-            demonstration_mode: false,
-        }
-    }
 }
 
 pub struct RunningServer {
@@ -95,10 +85,7 @@ pub async fn start(runtime: Runtime, options: ServerOptions) -> ApplicationResul
         .map_err(|error| ApplicationError::Storage(error.to_string()))?;
     state.set_origin(format!("http://{bound}")).await;
 
-    let bootstrap_url = format!(
-        "http://{bound}/#token={}",
-        state.sessions.bootstrap_token()
-    );
+    let bootstrap_url = format!("http://{bound}/#token={}", state.sessions.bootstrap_token());
     let router = build_router(state.clone());
     let (shutdown, receiver) = tokio::sync::oneshot::channel();
     let handle = tokio::spawn(async move {

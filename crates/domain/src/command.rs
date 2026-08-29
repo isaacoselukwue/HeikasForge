@@ -30,9 +30,12 @@ impl FromStr for CommandId {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let valid = !value.is_empty()
             && value.len() <= 64
-            && value
-                .chars()
-                .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-' || character == '_');
+            && value.chars().all(|character| {
+                character.is_ascii_lowercase()
+                    || character.is_ascii_digit()
+                    || character == '-'
+                    || character == '_'
+            });
         if !valid {
             return Err(DomainError::InvalidIdentifier {
                 kind: "CommandId",
@@ -53,7 +56,19 @@ impl schemars::JsonSchema for CommandId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CommandKind {
     Format,
@@ -109,7 +124,10 @@ impl CommandKind {
     }
 
     pub fn is_test_phase(&self) -> bool {
-        matches!(self, CommandKind::Test | CommandKind::Coverage | CommandKind::Build)
+        matches!(
+            self,
+            CommandKind::Test | CommandKind::Coverage | CommandKind::Build
+        )
     }
 
     pub fn is_review_phase(&self) -> bool {

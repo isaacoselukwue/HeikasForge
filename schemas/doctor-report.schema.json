@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DoctorReport",
+  "type": "object",
+  "required": [
+    "adapters",
+    "checks",
+    "free_path_available",
+    "ready"
+  ],
+  "properties": {
+    "repository_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/DoctorCheck"
+      }
+    },
+    "adapters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/AdapterStatus"
+      }
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "free_path_available": {
+      "type": "boolean"
+    }
+  },
+  "definitions": {
+    "DoctorCheck": {
+      "type": "object",
+      "required": [
+        "category",
+        "detail",
+        "id",
+        "outcome",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/definitions/CheckOutcome"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "remedy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "CheckOutcome": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "warning",
+        "failed",
+        "skipped"
+      ]
+    },
+    "AdapterStatus": {
+      "type": "object",
+      "required": [
+        "available",
+        "detail",
+        "kind",
+        "name",
+        "requires_paid_account"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requires_paid_account": {
+          "type": "boolean"
+        },
+        "isolation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -41,7 +41,9 @@ pub async fn create_run(
     Json(mut request): Json<CreateRunRequest>,
 ) -> ApiResult<Json<CreateRunResponse>> {
     if request.task_markdown.trim().is_empty() {
-        return Err(ApiError::bad_request("the task description must not be empty"));
+        return Err(ApiError::bad_request(
+            "the task description must not be empty",
+        ));
     }
     if request.task_markdown.len() > MAXIMUM_TASK_BYTES {
         return Err(ApiError::bad_request(format!(
@@ -96,11 +98,7 @@ pub async fn cancel_run(
     Json(request): Json<CancelRequest>,
 ) -> ApiResult<Json<AcknowledgementResponse>> {
     let run_id = parse_run_id(&run_id)?;
-    state
-        .runtime
-        .service
-        .cancel(run_id, request.reason)
-        .await?;
+    state.runtime.service.cancel(run_id, request.reason).await?;
     Ok(Json(AcknowledgementResponse {
         accepted: true,
         detail: "cancellation was recorded and propagated".to_string(),

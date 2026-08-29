@@ -19,7 +19,9 @@ pub async fn recover(services: &EngineServices, run_id: RunId) -> ApplicationRes
 
     let stored = services.store.load(run_id).await?;
     let mut projection = match stored {
-        Some(projection) if projection.last_event_sequence <= verification.last_sequence => projection,
+        Some(projection) if projection.last_event_sequence <= verification.last_sequence => {
+            projection
+        }
         Some(_) => {
             return Err(ApplicationError::CorruptEventLog {
                 run: run_id,
@@ -97,8 +99,11 @@ pub async fn recover(services: &EngineServices, run_id: RunId) -> ApplicationRes
                 .candidate(&candidate_id)
                 .map(|record| record.status);
             if let Some(status) = current {
-                if !status.is_terminal() && status != CandidateStatus::Interrupted {
-                    if status.transition_to(CandidateStatus::Interrupted).is_ok() {
+                if !status.is_terminal()
+                    && status != CandidateStatus::Interrupted
+                    && status.transition_to(CandidateStatus::Interrupted).is_ok()
+                {
+                    {
                         let event = services
                             .store
                             .append(
@@ -126,7 +131,10 @@ pub async fn recover(services: &EngineServices, run_id: RunId) -> ApplicationRes
                 run_id,
                 EventPayload::RecoveryCompleted {
                     replayed_events: replayed,
-                    repaired_projections: vec!["state.json".to_string(), "manifest.json".to_string()],
+                    repaired_projections: vec![
+                        "state.json".to_string(),
+                        "manifest.json".to_string(),
+                    ],
                 },
             )
             .await?;
@@ -138,9 +146,6 @@ pub async fn recover(services: &EngineServices, run_id: RunId) -> ApplicationRes
     }
 
     services.store.store(&projection).await?;
-    services
-        .store
-        .store_metrics(run_id, &projection)
-        .await?;
+    services.store.store_metrics(run_id, &projection).await?;
     Ok(projection)
 }

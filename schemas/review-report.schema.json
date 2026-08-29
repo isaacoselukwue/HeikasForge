@@ -1,0 +1,252 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewReport",
+  "type": "object",
+  "required": [
+    "advisory",
+    "artifacts",
+    "finished_at",
+    "issues",
+    "metrics",
+    "passed",
+    "provider",
+    "quality_gate",
+    "required",
+    "schema_version",
+    "started_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "provider": {
+      "type": "string"
+    },
+    "required": {
+      "type": "boolean"
+    },
+    "advisory": {
+      "type": "boolean"
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "quality_gate": {
+      "$ref": "#/definitions/QualityGateOutcome"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ReviewIssue"
+      }
+    },
+    "metrics": {
+      "$ref": "#/definitions/ReviewMetrics"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ReviewArtifactReference"
+      }
+    },
+    "started_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "finished_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "failure_summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "definitions": {
+    "QualityGateOutcome": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "not_applicable"
+      ]
+    },
+    "ReviewIssue": {
+      "type": "object",
+      "required": [
+        "category",
+        "fingerprint",
+        "is_new",
+        "message",
+        "provider",
+        "rule_id",
+        "severity"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/definitions/IssueCategory"
+        },
+        "severity": {
+          "$ref": "#/definitions/IssueSeverity"
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "message": {
+          "type": "string"
+        },
+        "help_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_new": {
+          "type": "boolean"
+        }
+      }
+    },
+    "IssueCategory": {
+      "type": "string",
+      "enum": [
+        "security",
+        "reliability",
+        "maintainability",
+        "coverage",
+        "formatting",
+        "policy",
+        "test_integrity",
+        "dependency",
+        "secret"
+      ]
+    },
+    "IssueSeverity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical",
+        "blocker"
+      ]
+    },
+    "ReviewMetrics": {
+      "type": "object",
+      "properties": {
+        "line_coverage_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "branch_coverage_percent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "changed_lines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "changed_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "analysed_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "duplicated_lines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ReviewArtifactReference": {
+      "type": "object",
+      "required": [
+        "byte_length",
+        "digest",
+        "label",
+        "media_type",
+        "relative_path"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "digest": {
+          "$ref": "#/definitions/ContentDigest"
+        },
+        "byte_length": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ContentDigest": {
+      "type": "string"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

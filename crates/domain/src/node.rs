@@ -77,7 +77,8 @@ impl NodeResult {
                 "node result finished before it started".to_string(),
             ));
         }
-        if self.node_id.scope() == crate::graph::NodeScope::Candidate && self.candidate_id.is_none() {
+        if self.node_id.scope() == crate::graph::NodeScope::Candidate && self.candidate_id.is_none()
+        {
             return Err(DomainError::MissingField {
                 field: "candidate_id",
             });
@@ -179,7 +180,12 @@ impl NodeResultBuilder {
         self.finish(finished_at, NodeStatus::Succeeded, next, None)
     }
 
-    pub fn failed(self, finished_at: Timestamp, failure: NodeFailure, next: Option<NodeId>) -> NodeResult {
+    pub fn failed(
+        self,
+        finished_at: Timestamp,
+        failure: NodeFailure,
+        next: Option<NodeId>,
+    ) -> NodeResult {
         self.finish(finished_at, NodeStatus::Failed, next, Some(failure))
     }
 

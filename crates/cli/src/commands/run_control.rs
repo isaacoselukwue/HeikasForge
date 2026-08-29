@@ -188,7 +188,10 @@ pub async fn report_dispatch(
         let mut text = String::new();
         text.push_str(&palette.heading("Dispatch result\n"));
         text.push_str(&format!("Run: {run_id}\n"));
-        text.push_str(&format!("Status: {}\n", palette.run_status(projection.status)));
+        text.push_str(&format!(
+            "Status: {}\n",
+            palette.run_status(projection.status)
+        ));
         text.push_str(&format!("Detail: {detail}\n"));
         if let Some(commit) = &projection.commit {
             text.push_str(&format!(

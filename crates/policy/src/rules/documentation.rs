@@ -74,7 +74,10 @@ pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>>
         if !referenced {
             findings.push(PolicyFinding::violation(
                 MEDIA_RULE,
-                format!("the public README does not reference `{}`", expectation.path),
+                format!(
+                    "the public README does not reference `{}`",
+                    expectation.path
+                ),
                 "Add the media reference to README.md.",
             ));
         }

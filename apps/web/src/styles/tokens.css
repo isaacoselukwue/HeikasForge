@@ -1,0 +1,84 @@
+@layer base {
+  :root {
+    --font-interface:
+      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+      "Noto Sans", sans-serif;
+    --font-mono:
+      ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    --radius-small: 4px;
+    --radius-medium: 8px;
+    --radius-large: 14px;
+
+    --duration-fast: 120ms;
+    --duration-medium: 220ms;
+  }
+
+  [data-theme="dark"] {
+    --surface-canvas: #080b12;
+    --surface-raised: #10151f;
+    --surface-overlay: #161d2a;
+    --surface-sunken: #05070c;
+    --surface-input: #0c1119;
+
+    --border-subtle: #1e2836;
+    --border-strong: #33415a;
+    --border-focus: #8b7bf7;
+
+    --text-primary: #eef2f8;
+    --text-secondary: #b3c0d3;
+    --text-muted: #8d9bb1;
+    --text-inverted: #05070c;
+
+    --accent-primary: #a394ff;
+    --accent-primary-strong: #8b7bf7;
+    --accent-secondary: #56ccf2;
+
+    --state-success: #4ade80;
+    --state-success-surface: #06331f;
+    --state-warning: #fbbf24;
+    --state-warning-surface: #3a2a05;
+    --state-failure: #fb7185;
+    --state-failure-surface: #3d0f1b;
+    --state-info: #7dd3fc;
+    --state-info-surface: #062a3d;
+    --state-neutral: #94a3b8;
+    --state-neutral-surface: #161d2a;
+
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 24px rgb(0 0 0 / 0.35);
+  }
+
+  [data-theme="light"] {
+    --surface-canvas: #f5f7fb;
+    --surface-raised: #ffffff;
+    --surface-overlay: #ffffff;
+    --surface-sunken: #e7ecf4;
+    --surface-input: #ffffff;
+
+    --border-subtle: #d3dbe8;
+    --border-strong: #9daabf;
+    --border-focus: #5b46d6;
+
+    --text-primary: #10151f;
+    --text-secondary: #364357;
+    --text-muted: #55637a;
+    --text-inverted: #ffffff;
+
+    --accent-primary: #5b46d6;
+    --accent-primary-strong: #4633b8;
+    --accent-secondary: #0369a1;
+
+    --state-success: #15803d;
+    --state-success-surface: #dcfce7;
+    --state-warning: #a16207;
+    --state-warning-surface: #fef3c7;
+    --state-failure: #b91c1c;
+    --state-failure-surface: #fee2e2;
+    --state-info: #0369a1;
+    --state-info-surface: #e0f2fe;
+    --state-neutral: #475569;
+    --state-neutral-surface: #e2e8f0;
+
+    --shadow-raised: 0 1px 2px rgb(15 23 42 / 0.08), 0 8px 24px rgb(15 23 42 / 0.08);
+  }
+}

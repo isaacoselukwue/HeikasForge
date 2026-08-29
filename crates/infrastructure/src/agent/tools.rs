@@ -253,7 +253,12 @@ impl ToolExecutor {
         let directory = if raw == "." || raw.is_empty() {
             root.clone()
         } else {
-            match confine(&self.worktree, &raw, PathAccess::Read, &self.policy.path_policy) {
+            match confine(
+                &self.worktree,
+                &raw,
+                PathAccess::Read,
+                &self.policy.path_policy,
+            ) {
                 Ok(path) => path.absolute,
                 Err(error) => return Ok(rejected(error.to_string())),
             }
@@ -298,7 +303,12 @@ impl ToolExecutor {
         let Some(raw) = arguments.get("path").and_then(Value::as_str) else {
             return Ok(rejected("the `path` argument is required".to_string()));
         };
-        let confined = match confine(&self.worktree, raw, PathAccess::Read, &self.policy.path_policy) {
+        let confined = match confine(
+            &self.worktree,
+            raw,
+            PathAccess::Read,
+            &self.policy.path_policy,
+        ) {
             Ok(path) => path,
             Err(error) => return Ok(rejected(error.to_string())),
         };
@@ -358,7 +368,9 @@ impl ToolExecutor {
             return Ok(rejected("the `query` argument is required".to_string()));
         };
         if query.is_empty() {
-            return Ok(rejected("the `query` argument must not be empty".to_string()));
+            return Ok(rejected(
+                "the `query` argument must not be empty".to_string(),
+            ));
         }
         let extension = arguments.get("extension").and_then(Value::as_str);
         let max_results = arguments
@@ -446,7 +458,10 @@ impl ToolExecutor {
             max_output_bytes: 262_144,
             label: format!("inspect_git:{mode}"),
         };
-        let outcome = self.processes.run(request, self.cancellation.clone()).await?;
+        let outcome = self
+            .processes
+            .run(request, self.cancellation.clone())
+            .await?;
         Ok(accepted(
             json!({
                 "mode": mode,
@@ -474,7 +489,12 @@ impl ToolExecutor {
                 self.policy.path_policy.maximum_write_bytes
             )));
         }
-        let confined = match confine(&self.worktree, raw, PathAccess::Write, &self.policy.path_policy) {
+        let confined = match confine(
+            &self.worktree,
+            raw,
+            PathAccess::Write,
+            &self.policy.path_policy,
+        ) {
             Ok(path) => path,
             Err(error) => return Ok(rejected(error.to_string())),
         };
@@ -495,7 +515,12 @@ impl ToolExecutor {
         let Some(raw) = arguments.get("path").and_then(Value::as_str) else {
             return Ok(rejected("the `path` argument is required".to_string()));
         };
-        let confined = match confine(&self.worktree, raw, PathAccess::Delete, &self.policy.path_policy) {
+        let confined = match confine(
+            &self.worktree,
+            raw,
+            PathAccess::Delete,
+            &self.policy.path_policy,
+        ) {
             Ok(path) => path,
             Err(error) => return Ok(rejected(error.to_string())),
         };
@@ -554,7 +579,10 @@ impl ToolExecutor {
             max_output_bytes: 262_144,
             label: "apply_patch".to_string(),
         };
-        let outcome = self.processes.run(request, self.cancellation.clone()).await?;
+        let outcome = self
+            .processes
+            .run(request, self.cancellation.clone())
+            .await?;
         if outcome.succeeded() {
             Ok(accepted(
                 json!({ "applied": true }),
@@ -570,10 +598,14 @@ impl ToolExecutor {
 
     async fn run_named_command(&self, arguments: &Value) -> ApplicationResult<ToolExecution> {
         let Some(raw) = arguments.get("command_id").and_then(Value::as_str) else {
-            return Ok(rejected("the `command_id` argument is required".to_string()));
+            return Ok(rejected(
+                "the `command_id` argument is required".to_string(),
+            ));
         };
         let Ok(command_id) = CommandId::from_str(raw) else {
-            return Ok(rejected(format!("`{raw}` is not a valid command identifier")));
+            return Ok(rejected(format!(
+                "`{raw}` is not a valid command identifier"
+            )));
         };
         if !self.policy.allowed_command_ids.contains(&command_id) {
             return Ok(rejected(format!(
@@ -594,7 +626,10 @@ impl ToolExecutor {
             &self.worktree,
             self.output_budget_bytes.min(1_048_576),
         );
-        let outcome = self.processes.run(request, self.cancellation.clone()).await?;
+        let outcome = self
+            .processes
+            .run(request, self.cancellation.clone())
+            .await?;
         Ok(accepted(
             json!({
                 "command_id": command_id.as_str(),

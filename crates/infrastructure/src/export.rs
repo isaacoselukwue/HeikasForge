@@ -77,7 +77,8 @@ impl EvidenceExporter for ZipEvidenceExporter {
                     let Ok(relative) = entry.path().strip_prefix(&root) else {
                         continue;
                     };
-                    let name = format!("{prefix}/{}", relative.to_string_lossy().replace('\\', "/"));
+                    let name =
+                        format!("{prefix}/{}", relative.to_string_lossy().replace('\\', "/"));
                     let contents = std::fs::read(entry.path())
                         .map_err(|error| storage(entry.path(), "read", error))?;
                     let redacted = if is_text(entry.path()) {

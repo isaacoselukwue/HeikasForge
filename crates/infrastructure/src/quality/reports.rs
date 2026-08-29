@@ -81,7 +81,9 @@ pub fn parse_junit_xml(contents: &str) -> ApplicationResult<TestSummary> {
                     "skipped" => summary.skipped += 1,
                     _ => {}
                 }
-                if matches!(name.as_str(), "failure" | "error") && matches!(reader.read_event_into(&mut Vec::new()), Ok(Event::Text(_))) {
+                if matches!(name.as_str(), "failure" | "error")
+                    && matches!(reader.read_event_into(&mut Vec::new()), Ok(Event::Text(_)))
+                {
                     pending_failure = None;
                 }
             }
@@ -172,14 +174,12 @@ pub fn parse_cargo_test_json(contents: &str) -> TestSummary {
                     line: None,
                 });
             }
-            (Some("suite"), Some("ok")) | (Some("suite"), Some("failed")) => {
-                if summary.total == 0 {
-                    summary.total = event.passed.unwrap_or(0)
-                        + event.failed.unwrap_or(0)
-                        + event.ignored.unwrap_or(0);
-                    summary.failed = event.failed.unwrap_or(0);
-                    summary.skipped = event.ignored.unwrap_or(0);
-                }
+            (Some("suite"), Some("ok")) | (Some("suite"), Some("failed")) if summary.total == 0 => {
+                summary.total = event.passed.unwrap_or(0)
+                    + event.failed.unwrap_or(0)
+                    + event.ignored.unwrap_or(0);
+                summary.failed = event.failed.unwrap_or(0);
+                summary.skipped = event.ignored.unwrap_or(0);
             }
             _ => {}
         }
@@ -324,7 +324,10 @@ pub fn parse_sarif(contents: &str, provider: &str) -> ApplicationResult<Vec<Revi
                             .artifact_location
                             .as_ref()
                             .and_then(|artifact| artifact.uri.clone()),
-                        physical.region.as_ref().and_then(|region| region.start_line),
+                        physical
+                            .region
+                            .as_ref()
+                            .and_then(|region| region.start_line),
                         physical
                             .region
                             .as_ref()

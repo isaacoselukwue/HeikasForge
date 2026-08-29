@@ -20,11 +20,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     let services = context.services();
     let configuration = context.configuration();
     let baseline_commit = baseline(context)?;
-    let winner = context
-        .projection
-        .winner
-        .clone()
-        .ok_or_else(|| ApplicationError::Internal("no winner is selected for integration".to_string()))?;
+    let winner = context.projection.winner.clone().ok_or_else(|| {
+        ApplicationError::Internal("no winner is selected for integration".to_string())
+    })?;
 
     let branch_text = worktree_role_branch(context, WorktreeRole::Integration, None);
     let branch = BranchName::from_str(&branch_text)?;

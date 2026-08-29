@@ -83,9 +83,9 @@ impl Redactor for PatternRedactor {
     fn redact_json(&self, value: &serde_json::Value) -> serde_json::Value {
         match value {
             serde_json::Value::String(text) => serde_json::Value::String(self.redact(text)),
-            serde_json::Value::Array(items) => serde_json::Value::Array(
-                items.iter().map(|item| self.redact_json(item)).collect(),
-            ),
+            serde_json::Value::Array(items) => {
+                serde_json::Value::Array(items.iter().map(|item| self.redact_json(item)).collect())
+            }
             serde_json::Value::Object(entries) => {
                 let mut mapped = serde_json::Map::new();
                 for (key, entry) in entries {

@@ -1,0 +1,21 @@
+{
+  "name": "heikas-forge-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.24.0",
+  "description": "Workspace scripts for the Heikas Forge local-first agentic engineering orchestrator",
+  "license": "MIT",
+  "author": "Isaac Oselukwue",
+  "scripts": {
+    "web:dev": "pnpm --filter heikas-forge-web dev",
+    "web:build": "pnpm --filter heikas-forge-web build",
+    "web:lint": "pnpm --filter heikas-forge-web lint",
+    "web:format": "pnpm --filter heikas-forge-web format:check",
+    "web:typecheck": "pnpm --filter heikas-forge-web typecheck",
+    "web:test": "pnpm --filter heikas-forge-web test",
+    "web:e2e": "pnpm --filter heikas-forge-web e2e",
+    "web:types": "pnpm --filter heikas-forge-web generate:types",
+    "docs:capture": "pnpm --filter heikas-forge-web capture",
+    "verify": "cargo xtask verify"
+  }
+}

@@ -131,7 +131,12 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     }
 
     for command in &configuration.commands.commands {
-        if services.processes.probe_executable(&command.program).await?.is_none() {
+        if services
+            .processes
+            .probe_executable(&command.program)
+            .await?
+            .is_none()
+        {
             return Ok(NodeOutput::failed(
                 NodeFailure::new(
                     FailureClass::PermanentConfiguration,
@@ -154,7 +159,10 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
                 NodeFailure::new(
                     FailureClass::PermanentConfiguration,
                     "required_review_provider_unavailable",
-                    format!("the required review provider `{}` is not available", provider.name()),
+                    format!(
+                        "the required review provider `{}` is not available",
+                        provider.name()
+                    ),
                 )
                 .with_remedy("Install the provider or change the quality profile."),
                 None,

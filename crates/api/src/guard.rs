@@ -36,9 +36,11 @@ pub async fn guard(
         .validate(session_id.as_deref(), csrf.as_deref(), mutating)
         .await
         .map_err(|rejection| match rejection {
-            crate::session::SessionRejection::RateLimited => {
-                ApiError::new(StatusCode::TOO_MANY_REQUESTS, "rate_limited", rejection.message())
-            }
+            crate::session::SessionRejection::RateLimited => ApiError::new(
+                StatusCode::TOO_MANY_REQUESTS,
+                "rate_limited",
+                rejection.message(),
+            ),
             crate::session::SessionRejection::CsrfMismatch => {
                 ApiError::forbidden(rejection.message())
             }

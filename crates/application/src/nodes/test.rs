@@ -15,7 +15,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     let configuration = context.configuration();
     let candidate_id = context
         .candidate_id()
-        .ok_or_else(|| ApplicationError::Internal("the test node requires a candidate".to_string()))?
+        .ok_or_else(|| {
+            ApplicationError::Internal("the test node requires a candidate".to_string())
+        })?
         .clone();
     let worktree = candidate_worktree(context, &candidate_id).await?;
     let baseline_commit = baseline(context)?;
@@ -78,7 +80,10 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
         candidate_id: Some(candidate_id.clone()),
         node_id: NodeId::TestCandidate,
         passed,
-        commands: commands.iter().map(|command| command.id.to_string()).collect(),
+        commands: commands
+            .iter()
+            .map(|command| command.id.to_string())
+            .collect(),
         failed_commands: failed_commands.clone(),
         line_coverage_percent: evidence_bundle.line_coverage_percent,
         duration: evidence_bundle.total_duration,

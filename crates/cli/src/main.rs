@@ -124,7 +124,9 @@ async fn execute(arguments: Arguments) -> ExitCode {
         Command::Cancel { run, reason } => {
             commands::run_control::cancel(&context, &run, reason).await
         }
-        Command::List { status, limit } => commands::inspection::list(&context, status, limit).await,
+        Command::List { status, limit } => {
+            commands::inspection::list(&context, status, limit).await
+        }
         Command::Show { run } => commands::inspection::show(&context, &run).await,
         Command::Logs { run, follow, limit } => {
             commands::inspection::logs(&context, &run, follow, limit).await

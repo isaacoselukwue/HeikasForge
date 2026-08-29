@@ -4,14 +4,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use heikas_application::error::ApplicationResult;
 use heikas_application::ports::process::{ProcessOutcome, ProcessRequest, ProcessRunner};
-use heikas_application::ports::quality::{GateArtifact, GateContext, TestGateOutput, TestGateRunner};
+use heikas_application::ports::quality::{
+    GateArtifact, GateContext, TestGateOutput, TestGateRunner,
+};
 use heikas_domain::command::{CommandKind, CommandSpecification, ReportFormat};
 use heikas_domain::identity::ContentDigest;
 use heikas_domain::test_evidence::{
     CommandExecutionRecord, CommandOutcome, TestEvidence, TestFailureDetail,
 };
 
-use crate::quality::reports::{parse_cargo_test_json, parse_junit_xml, parse_lcov_coverage, TestSummary};
+use crate::quality::reports::{
+    parse_cargo_test_json, parse_junit_xml, parse_lcov_coverage, TestSummary,
+};
 
 pub struct CommandTestGateRunner {
     processes: Arc<dyn ProcessRunner>,
@@ -204,9 +208,21 @@ pub fn build_record(
             stderr_artifact: Some(ContentDigest::of_bytes(&outcome.stderr)),
             stdout_truncated: outcome.stdout_truncated,
             stderr_truncated: outcome.stderr_truncated,
-            tests_total: if summary.total > 0 { Some(summary.total) } else { None },
-            tests_failed: if summary.total > 0 { Some(summary.failed) } else { None },
-            tests_skipped: if summary.total > 0 { Some(summary.skipped) } else { None },
+            tests_total: if summary.total > 0 {
+                Some(summary.total)
+            } else {
+                None
+            },
+            tests_failed: if summary.total > 0 {
+                Some(summary.failed)
+            } else {
+                None
+            },
+            tests_skipped: if summary.total > 0 {
+                Some(summary.skipped)
+            } else {
+                None
+            },
             failures: limit_failures(summary.failures),
             line_coverage_percent: coverage,
             detail,

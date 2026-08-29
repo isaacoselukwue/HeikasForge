@@ -9,13 +9,14 @@ pub fn ensure_directory(path: &Path) -> ApplicationResult<()> {
 }
 
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> ApplicationResult<()> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| ApplicationError::Storage(format!("`{}` has no parent directory", path.display())))?;
+    let parent = path.parent().ok_or_else(|| {
+        ApplicationError::Storage(format!("`{}` has no parent directory", path.display()))
+    })?;
     ensure_directory(parent)?;
     let temporary = temporary_sibling(path);
     {
-        let mut file = File::create(&temporary).map_err(|error| storage(&temporary, "create", error))?;
+        let mut file =
+            File::create(&temporary).map_err(|error| storage(&temporary, "create", error))?;
         file.write_all(bytes)
             .map_err(|error| storage(&temporary, "write", error))?;
         file.flush()
@@ -38,11 +39,12 @@ pub fn write_atomic_json<T: serde::Serialize>(path: &Path, value: &T) -> Applica
 pub fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> ApplicationResult<Option<T>> {
     match fs::read(path) {
         Ok(bytes) => {
-            let value = serde_json::from_slice(&bytes)
-                .map_err(|error| ApplicationError::Serialisation(format!(
+            let value = serde_json::from_slice(&bytes).map_err(|error| {
+                ApplicationError::Serialisation(format!(
                     "`{}` could not be decoded: {error}",
                     path.display()
-                )))?;
+                ))
+            })?;
             Ok(Some(value))
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -51,9 +53,9 @@ pub fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> ApplicationResu
 }
 
 pub fn append_line_synchronised(path: &Path, line: &[u8]) -> ApplicationResult<()> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| ApplicationError::Storage(format!("`{}` has no parent directory", path.display())))?;
+    let parent = path.parent().ok_or_else(|| {
+        ApplicationError::Storage(format!("`{}` has no parent directory", path.display()))
+    })?;
     ensure_directory(parent)?;
     let mut file = OpenOptions::new()
         .create(true)
@@ -64,7 +66,8 @@ pub fn append_line_synchronised(path: &Path, line: &[u8]) -> ApplicationResult<(
         .map_err(|error| storage(path, "append", error))?;
     file.write_all(b"\n")
         .map_err(|error| storage(path, "append", error))?;
-    file.flush().map_err(|error| storage(path, "flush", error))?;
+    file.flush()
+        .map_err(|error| storage(path, "flush", error))?;
     file.sync_all()
         .map_err(|error| storage(path, "synchronise", error))
 }
@@ -91,7 +94,10 @@ pub fn rename_directory_into_place(temporary: &Path, destination: &Path) -> Appl
         )));
     }
     let parent = destination.parent().ok_or_else(|| {
-        ApplicationError::Storage(format!("`{}` has no parent directory", destination.display()))
+        ApplicationError::Storage(format!(
+            "`{}` has no parent directory",
+            destination.display()
+        ))
     })?;
     ensure_directory(parent)?;
     sync_tree(temporary)?;

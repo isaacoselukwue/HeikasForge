@@ -82,7 +82,8 @@ impl StoreLayout {
     }
 
     pub fn plan_version_file(&self, run_id: RunId, version: u32) -> PathBuf {
-        self.plan_directory(run_id).join(format!("plan-v{version}.md"))
+        self.plan_directory(run_id)
+            .join(format!("plan-v{version}.md"))
     }
 
     pub fn nodes_directory(&self, run_id: RunId) -> PathBuf {
@@ -160,9 +161,11 @@ fn platform_data_root() -> Option<PathBuf> {
 
 #[cfg(target_os = "macos")]
 fn platform_data_root() -> Option<PathBuf> {
-    std::env::var("HOME")
-        .ok()
-        .map(|home| PathBuf::from(home).join("Library").join("Application Support"))
+    std::env::var("HOME").ok().map(|home| {
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+    })
 }
 
 #[cfg(target_os = "windows")]

@@ -38,11 +38,7 @@ pub struct PromptLibrary;
 impl PromptLibrary {
     pub fn render(role: AgentRole, facts: &PromptFacts) -> ApplicationResult<PromptContract> {
         let (template_id, body, schema) = match role {
-            AgentRole::Planner => (
-                "plan",
-                Self::planner_body(facts),
-                Self::planner_schema(),
-            ),
+            AgentRole::Planner => ("plan", Self::planner_body(facts), Self::planner_schema()),
             AgentRole::Implementer => (
                 "implement",
                 Self::implementer_body(facts)?,
@@ -109,7 +105,9 @@ impl PromptLibrary {
 
     fn implementer_body(facts: &PromptFacts) -> ApplicationResult<String> {
         let plan = facts.approved_plan.as_ref().ok_or_else(|| {
-            ApplicationError::Internal("an implementation prompt requires an approved plan".to_string())
+            ApplicationError::Internal(
+                "an implementation prompt requires an approved plan".to_string(),
+            )
         })?;
         let plan_hash = facts.approved_plan_hash.as_ref().ok_or_else(|| {
             ApplicationError::Internal(
@@ -121,7 +119,9 @@ impl PromptLibrary {
         body.push_str("\n\nApproved plan hash: ");
         body.push_str(plan_hash);
         if let (Some(strategy), Some(emphasis)) = (&facts.strategy, &facts.strategy_emphasis) {
-            body.push_str(&format!("\nCandidate strategy: {strategy}\nStrategy emphasis: {emphasis}"));
+            body.push_str(&format!(
+                "\nCandidate strategy: {strategy}\nStrategy emphasis: {emphasis}"
+            ));
         }
         body.push_str("\n\nTask title:\n");
         body.push_str(&facts.task_title);

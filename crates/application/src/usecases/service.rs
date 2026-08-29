@@ -25,7 +25,9 @@ use crate::ports::environment::HostEnvironment;
 use crate::ports::git::GitService;
 use crate::ports::observability::{DomainEventPublisher, RunLogWriter};
 use crate::ports::process::ProcessRunner;
-use crate::ports::runtime::{ConfigurationResolver, EvidenceExporter, ExportOutcome, RuntimeFactory};
+use crate::ports::runtime::{
+    ConfigurationResolver, EvidenceExporter, ExportOutcome, RuntimeFactory,
+};
 use crate::ports::store::{RunLockService, RunStore};
 use crate::usecases::{diagnostics, views};
 
@@ -189,11 +191,7 @@ impl ApplicationService {
         Ok(())
     }
 
-    pub async fn update_plan(
-        &self,
-        run_id: RunId,
-        markdown: &str,
-    ) -> ApplicationResult<u32> {
+    pub async fn update_plan(&self, run_id: RunId, markdown: &str) -> ApplicationResult<u32> {
         let projection = self.projection(run_id).await?;
         self.ensure_plan_editable(&projection, "update_plan")?;
         let version_number = projection.plan.next_version_number();
@@ -280,7 +278,11 @@ impl ApplicationService {
         .map(|_| ())
     }
 
-    pub async fn reject_plan(&self, run_id: RunId, reason: Option<String>) -> ApplicationResult<()> {
+    pub async fn reject_plan(
+        &self,
+        run_id: RunId,
+        reason: Option<String>,
+    ) -> ApplicationResult<()> {
         let projection = self.projection(run_id).await?;
         self.ensure_plan_editable(&projection, "reject_plan")?;
         let current = projection.plan.current().ok_or_else(|| {
@@ -301,7 +303,11 @@ impl ApplicationService {
         .map(|_| ())
     }
 
-    pub async fn approve_commit(&self, run_id: RunId, note: Option<String>) -> ApplicationResult<()> {
+    pub async fn approve_commit(
+        &self,
+        run_id: RunId,
+        note: Option<String>,
+    ) -> ApplicationResult<()> {
         let projection = self.projection(run_id).await?;
         if projection.status != RunStatus::AwaitingCommitApproval {
             return Err(ApplicationError::InvalidRunState {
@@ -332,7 +338,7 @@ impl ApplicationService {
                 None => continue,
             }
         }
-        summaries.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        summaries.sort_by_key(|summary| std::cmp::Reverse(summary.created_at));
         Ok(summaries)
     }
 
@@ -495,9 +501,11 @@ impl ApplicationService {
                 operation,
             });
         }
-        if projection.candidates.iter().any(|candidate| {
-            candidate.status != heikas_domain::candidate::CandidateStatus::Pending
-        }) {
+        if projection
+            .candidates
+            .iter()
+            .any(|candidate| candidate.status != heikas_domain::candidate::CandidateStatus::Pending)
+        {
             return Err(ApplicationError::InvalidRunState {
                 run: projection.run_id,
                 status: "candidate work has already started".to_string(),

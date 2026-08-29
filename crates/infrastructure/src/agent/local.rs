@@ -49,9 +49,11 @@ impl LocalModelAgentDriver {
         self.configuration
             .endpoint
             .clone()
-            .ok_or_else(|| ApplicationError::InvalidConfiguration(
-                "the local agent driver requires a model endpoint".to_string(),
-            ))
+            .ok_or_else(|| {
+                ApplicationError::InvalidConfiguration(
+                    "the local agent driver requires a model endpoint".to_string(),
+                )
+            })
             .map(|value| value.trim_end_matches('/').to_string())
     }
 
@@ -76,10 +78,9 @@ impl LocalModelAgentDriver {
         if let Some(key) = self.api_key() {
             request = request.bearer_auth(key);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|error| ApplicationError::Agent(format!("the model endpoint could not be reached: {error}")))?;
+        let response = request.send().await.map_err(|error| {
+            ApplicationError::Agent(format!("the model endpoint could not be reached: {error}"))
+        })?;
         let status = response.status();
         let text = response
             .text()
@@ -91,8 +92,9 @@ impl LocalModelAgentDriver {
                 text.chars().take(600).collect::<String>()
             )));
         }
-        serde_json::from_str(&text)
-            .map_err(|error| ApplicationError::Agent(format!("the model response was not valid JSON: {error}")))
+        serde_json::from_str(&text).map_err(|error| {
+            ApplicationError::Agent(format!("the model response was not valid JSON: {error}"))
+        })
     }
 
     async fn list_models(&self) -> ApplicationResult<Vec<String>> {
@@ -154,7 +156,10 @@ impl LocalModelAgentDriver {
                 } else {
                     (
                         false,
-                        Some("the model did not produce a structured tool call during the probe".to_string()),
+                        Some(
+                            "the model did not produce a structured tool call during the probe"
+                                .to_string(),
+                        ),
                     )
                 }
             }
@@ -199,7 +204,8 @@ impl LocalModelAgentDriver {
                 "the configured model `{model}` was not listed by the runtime"
             ));
         }
-        let (supports_tools, tool_diagnostic) = if std::env::var("HEIKAS_SKIP_AGENT_PROBE").is_ok() {
+        let (supports_tools, tool_diagnostic) = if std::env::var("HEIKAS_SKIP_AGENT_PROBE").is_ok()
+        {
             (true, None)
         } else {
             self.probe_tool_calls(&model).await
@@ -450,7 +456,10 @@ impl AgentDriver for LocalModelAgentDriver {
 }
 
 fn record_usage(response: &Value, usage: &mut AgentUsage) {
-    if let Some(input) = response.pointer("/usage/prompt_tokens").and_then(Value::as_u64) {
+    if let Some(input) = response
+        .pointer("/usage/prompt_tokens")
+        .and_then(Value::as_u64)
+    {
         usage.input_tokens = Some(usage.input_tokens.unwrap_or(0) + input);
     }
     if let Some(output) = response

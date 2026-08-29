@@ -1,0 +1,1941 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DurableEvent",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "payload",
+    "payload_hash",
+    "previous_hash",
+    "recorded_at",
+    "run_id",
+    "schema_version",
+    "sequence"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "sequence": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "event_id": {
+      "$ref": "#/definitions/EventId"
+    },
+    "run_id": {
+      "$ref": "#/definitions/RunId"
+    },
+    "candidate_id": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CandidateId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "node_id": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/NodeId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "attempt": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AttemptNumber"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recorded_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "previous_hash": {
+      "type": "string"
+    },
+    "payload_hash": {
+      "type": "string"
+    },
+    "payload": {
+      "$ref": "#/definitions/EventPayload"
+    }
+  },
+  "definitions": {
+    "EventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "RunId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "CandidateId": {
+      "type": "string"
+    },
+    "NodeId": {
+      "type": "string",
+      "enum": [
+        "prepare",
+        "plan",
+        "approval",
+        "fan_out",
+        "implement_candidate",
+        "test_candidate",
+        "review_candidate",
+        "repair_candidate",
+        "join",
+        "integrate_winner",
+        "final_test",
+        "final_review",
+        "commit_approval",
+        "commit"
+      ]
+    },
+    "AttemptNumber": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "EventPayload": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "agent_driver",
+            "candidate_count",
+            "commit_policy",
+            "demonstration_mode",
+            "repository_path",
+            "task_digest",
+            "task_title",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "run_created"
+              ]
+            },
+            "repository_path": {
+              "type": "string"
+            },
+            "task_title": {
+              "type": "string"
+            },
+            "task_digest": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "candidate_count": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "commit_policy": {
+              "$ref": "#/definitions/CommitPolicy"
+            },
+            "agent_driver": {
+              "type": "string"
+            },
+            "demonstration_mode": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "from",
+            "to",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "run_status_changed"
+              ]
+            },
+            "from": {
+              "$ref": "#/definitions/RunStatus"
+            },
+            "to": {
+              "$ref": "#/definitions/RunStatus"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "baseline_commit",
+            "default_branch",
+            "dirty_snapshot",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "baseline_resolved"
+              ]
+            },
+            "baseline_commit": {
+              "$ref": "#/definitions/CommitHash"
+            },
+            "default_branch": {
+              "type": "string"
+            },
+            "dirty_snapshot": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "command_ids",
+            "digest",
+            "required_command_ids",
+            "review_providers",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "configuration_snapshotted"
+              ]
+            },
+            "digest": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "command_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "required_command_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "review_providers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "node_id",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_started"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "prompt_template_hash": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ContentDigest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "duration",
+            "node_id",
+            "result_digest",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_succeeded"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "duration": {
+              "$ref": "#/definitions/DurationMs"
+            },
+            "next": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/NodeId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_digest": {
+              "$ref": "#/definitions/ContentDigest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "duration",
+            "failure",
+            "node_id",
+            "result_digest",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_failed"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "duration": {
+              "$ref": "#/definitions/DurationMs"
+            },
+            "failure": {
+              "$ref": "#/definitions/NodeFailure"
+            },
+            "next": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/NodeId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_digest": {
+              "$ref": "#/definitions/ContentDigest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "node_id",
+            "reason",
+            "result_digest",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_paused"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "result_digest": {
+              "$ref": "#/definitions/ContentDigest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "node_id",
+            "result_digest",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_cancelled"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "result_digest": {
+              "$ref": "#/definitions/ContentDigest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "detected_at",
+            "node_id",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_interrupted"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "detected_at": {
+              "$ref": "#/definitions/Timestamp"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "attempt",
+            "delay",
+            "node_id",
+            "reason",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "node_retry_scheduled"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt": {
+              "$ref": "#/definitions/AttemptNumber"
+            },
+            "delay": {
+              "$ref": "#/definitions/DurationMs"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "author",
+            "byte_length",
+            "plan_hash",
+            "type",
+            "version"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "plan_version_written"
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "plan_hash": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "author": {
+              "$ref": "#/definitions/PlanAuthor"
+            },
+            "revision_note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "byte_length": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "approval_id",
+            "decision",
+            "local_user",
+            "plan_hash",
+            "plan_version",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "plan_decision_recorded"
+              ]
+            },
+            "approval_id": {
+              "$ref": "#/definitions/ApprovalId"
+            },
+            "decision": {
+              "$ref": "#/definitions/ApprovalDecision"
+            },
+            "plan_version": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "plan_hash": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "local_user": {
+              "type": "string"
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "current_plan_hash",
+            "previous_plan_hash",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "plan_approval_invalidated"
+              ]
+            },
+            "previous_plan_hash": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "current_plan_hash": {
+              "$ref": "#/definitions/ContentDigest"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "branch",
+            "candidate_id",
+            "ordinal",
+            "repair_budget",
+            "strategy",
+            "type",
+            "worktree_relative_path"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_registered"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "ordinal": {
+              "$ref": "#/definitions/CandidateOrdinal"
+            },
+            "strategy": {
+              "$ref": "#/definitions/CandidateStrategy"
+            },
+            "branch": {
+              "type": "string"
+            },
+            "worktree_relative_path": {
+              "type": "string"
+            },
+            "repair_budget": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "from",
+            "to",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_status_changed"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "from": {
+              "$ref": "#/definitions/CandidateStatus"
+            },
+            "to": {
+              "$ref": "#/definitions/CandidateStatus"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "changed_files",
+            "changed_lines",
+            "diff_digest",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_diff_recorded"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "diff_digest": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "changed_files": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "changed_lines": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "repair_budget",
+            "repairs_used",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_repair_started"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "repairs_used": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "repair_budget": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "failure_fingerprint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "commands",
+            "duration",
+            "failed_commands",
+            "node_id",
+            "passed",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "test_evidence_recorded"
+              ]
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "passed": {
+              "type": "boolean"
+            },
+            "commands": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "failed_commands": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "line_coverage_percent": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "duration": {
+              "$ref": "#/definitions/DurationMs"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "blocker_issues",
+            "duration",
+            "failed_providers",
+            "node_id",
+            "passed",
+            "providers",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "review_evidence_recorded"
+              ]
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "passed": {
+              "type": "boolean"
+            },
+            "providers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "failed_providers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "blocker_issues": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "duration": {
+              "$ref": "#/definitions/DurationMs"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "score",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_scored"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "score": {
+              "$ref": "#/definitions/ScoreTuple"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "reasons",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_excluded"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ExclusionReason"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "ranking",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "ranking_computed"
+              ]
+            },
+            "ranking": {
+              "$ref": "#/definitions/Ranking"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "candidate_id",
+            "rank",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "winner_selected"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "rank": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "applied",
+            "candidate_id",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "integration_attempted"
+              ]
+            },
+            "candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "applied": {
+              "type": "boolean"
+            },
+            "detail": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "previous_candidate_id",
+            "reason",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "candidate_promotion_requested"
+              ]
+            },
+            "previous_candidate_id": {
+              "$ref": "#/definitions/CandidateId"
+            },
+            "next_candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "approval_id",
+            "local_user",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "commit_approval_recorded"
+              ]
+            },
+            "approval_id": {
+              "$ref": "#/definitions/ApprovalId"
+            },
+            "local_user": {
+              "type": "string"
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "author_name",
+            "branch",
+            "changed_files",
+            "commit_hash",
+            "committer_name",
+            "signed",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "commit_created"
+              ]
+            },
+            "branch": {
+              "$ref": "#/definitions/BranchName"
+            },
+            "commit_hash": {
+              "$ref": "#/definitions/CommitHash"
+            },
+            "author_name": {
+              "type": "string"
+            },
+            "committer_name": {
+              "type": "string"
+            },
+            "changed_files": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "signed": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "requested_by",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "cancellation_requested"
+              ]
+            },
+            "requested_by": {
+              "type": "string"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "interrupted_attempts",
+            "last_applied_sequence",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "recovery_started"
+              ]
+            },
+            "last_applied_sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "interrupted_attempts": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "repaired_projections",
+            "replayed_events",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "recovery_completed"
+              ]
+            },
+            "replayed_events": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "repaired_projections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "children_terminated",
+            "command_id",
+            "node_id",
+            "timed_out",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "process_supervision_recorded"
+              ]
+            },
+            "node_id": {
+              "$ref": "#/definitions/NodeId"
+            },
+            "candidate_id": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/CandidateId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            },
+            "process_id": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "exit_code": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            },
+            "timed_out": {
+              "type": "boolean"
+            },
+            "children_terminated": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "artifact_id",
+            "byte_length",
+            "label",
+            "relative_path",
+            "truncated",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "artifact_stored"
+              ]
+            },
+            "artifact_id": {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            "label": {
+              "type": "string"
+            },
+            "relative_path": {
+              "type": "string"
+            },
+            "byte_length": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "archive_relative_path",
+            "byte_length",
+            "redacted",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "run_exported"
+              ]
+            },
+            "archive_relative_path": {
+              "type": "string"
+            },
+            "byte_length": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "redacted": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "code",
+            "level",
+            "message",
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "diagnostic_recorded"
+              ]
+            },
+            "level": {
+              "$ref": "#/definitions/DiagnosticLevel"
+            },
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "detail": true
+          }
+        }
+      ]
+    },
+    "ContentDigest": {
+      "type": "string"
+    },
+    "CommitPolicy": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "automatic",
+        "none"
+      ]
+    },
+    "RunStatus": {
+      "type": "string",
+      "enum": [
+        "created",
+        "validating",
+        "planning",
+        "awaiting_plan_approval",
+        "running_candidates",
+        "joining",
+        "integrating",
+        "awaiting_commit_approval",
+        "succeeded",
+        "exhausted",
+        "failed",
+        "cancelled",
+        "recovery_required"
+      ]
+    },
+    "CommitHash": {
+      "type": "string"
+    },
+    "DurationMs": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "NodeFailure": {
+      "type": "object",
+      "required": [
+        "class",
+        "code",
+        "message"
+      ],
+      "properties": {
+        "class": {
+          "$ref": "#/definitions/FailureClass"
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "remedy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "FailureClass": {
+      "type": "string",
+      "enum": [
+        "task_failure",
+        "transient_infrastructure",
+        "permanent_configuration",
+        "policy_violation",
+        "user_action_required",
+        "cancelled",
+        "internal_invariant"
+      ]
+    },
+    "PlanAuthor": {
+      "type": "string",
+      "enum": [
+        "agent",
+        "human"
+      ]
+    },
+    "ApprovalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "ApprovalDecision": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "revision_requested",
+        "rejected"
+      ]
+    },
+    "CandidateOrdinal": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0.0
+    },
+    "CandidateStrategy": {
+      "type": "string",
+      "enum": [
+        "minimal_patch",
+        "test_led",
+        "architecture_aware"
+      ]
+    },
+    "CandidateStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "preparing",
+        "implementing",
+        "testing",
+        "reviewing",
+        "repairing",
+        "eligible",
+        "ineligible",
+        "interrupted",
+        "cancelled"
+      ]
+    },
+    "ScoreTuple": {
+      "type": "object",
+      "required": [
+        "blocker_issues",
+        "candidate_id",
+        "changed_lines",
+        "coverage_rank",
+        "critical_issues",
+        "gate_duration_ms",
+        "high_issues",
+        "medium_issues",
+        "new_maintainability_weight",
+        "new_reliability_weight",
+        "new_security_weight",
+        "repair_attempts",
+        "test_integrity_penalty"
+      ],
+      "properties": {
+        "blocker_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "critical_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "high_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "medium_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_security_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_reliability_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_maintainability_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "coverage_rank": {
+          "$ref": "#/definitions/CoverageRank"
+        },
+        "test_integrity_penalty": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "changed_lines": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "repair_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "gate_duration_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "candidate_id": {
+          "$ref": "#/definitions/CandidateId"
+        }
+      }
+    },
+    "CoverageRank": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "measured"
+              ]
+            },
+            "value": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "missing"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ExclusionReason": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "command_id",
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_test_failed"
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "command_id",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_test_missing"
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "provider",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_review_failed"
+              ]
+            },
+            "provider": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_review_missing"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason",
+            "rule_id"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "blocker_policy_finding"
+              ]
+            },
+            "rule_id": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "empty_diff"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "diff_does_not_apply"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "measured",
+            "reason",
+            "required"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "coverage_below_threshold"
+              ]
+            },
+            "measured": {
+              "type": "number",
+              "format": "double"
+            },
+            "required": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "budget",
+            "reason",
+            "used"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "repair_budget_exhausted"
+              ]
+            },
+            "used": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "budget": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "time_budget_exceeded"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "cancelled"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "interrupted"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "integration_failed"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "Ranking": {
+      "type": "object",
+      "required": [
+        "entries",
+        "rationale"
+      ],
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RankedCandidate"
+          }
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CandidateId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rationale": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "RankedCandidate": {
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "eligible",
+        "exclusion_reasons"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/definitions/CandidateId"
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ScoreTuple"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exclusion_reasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExclusionReason"
+          }
+        },
+        "rank": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "BranchName": {
+      "type": "string"
+    },
+    "DiagnosticLevel": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ]
+    }
+  }
+}

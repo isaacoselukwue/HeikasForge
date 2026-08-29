@@ -52,7 +52,11 @@ impl ExternalCliAgentDriver {
                     "--output-format".to_string(),
                     "json".to_string(),
                     "--permission-mode".to_string(),
-                    if read_only { "plan".to_string() } else { "acceptEdits".to_string() },
+                    if read_only {
+                        "plan".to_string()
+                    } else {
+                        "acceptEdits".to_string()
+                    },
                 ];
                 if read_only {
                     args.push("--allowedTools".to_string());
@@ -108,7 +112,9 @@ impl ExternalCliAgentDriver {
         let available = version.is_some();
         let mut diagnostics = Vec::new();
         if !available {
-            diagnostics.push(format!("the executable `{executable}` was not found on the path"));
+            diagnostics.push(format!(
+                "the executable `{executable}` was not found on the path"
+            ));
         }
         if !self.honours_write_restriction() {
             diagnostics.push(
@@ -230,7 +236,8 @@ impl AgentDriver for ExternalCliAgentDriver {
         let structured_response = extract_structured_response(&outcome.stdout_text());
 
         Ok(AgentOutcome {
-            exit_reason: if exit_reason == AgentExitReason::Completed && structured_response.is_none()
+            exit_reason: if exit_reason == AgentExitReason::Completed
+                && structured_response.is_none()
             {
                 AgentExitReason::DriverFailure
             } else {

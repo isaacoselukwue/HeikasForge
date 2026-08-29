@@ -38,10 +38,7 @@ pub async fn serve(
     let mut bootstrap_url = server.bootstrap_url.clone();
     if let Some(reference) = &options.run {
         let run_id = context.service().resolve_run_reference(reference).await?;
-        bootstrap_url = format!(
-            "{}&run={run_id}",
-            server.bootstrap_url
-        );
+        bootstrap_url = format!("{}&run={run_id}", server.bootstrap_url);
     }
 
     let outcome = InterfaceOutcome {
@@ -83,7 +80,12 @@ fn open_in_browser(url: &str) {
     } else if cfg!(target_os = "windows") {
         vec![(
             "cmd",
-            vec!["/C".to_string(), "start".to_string(), String::new(), url.to_string()],
+            vec![
+                "/C".to_string(),
+                "start".to_string(),
+                String::new(),
+                url.to_string(),
+            ],
         )]
     } else {
         vec![

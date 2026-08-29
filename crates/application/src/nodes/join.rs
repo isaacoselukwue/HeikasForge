@@ -95,7 +95,10 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     }
 
     let ranking = rank_candidates(entries);
-    services.store.write_ranking(context.run.run_id, &ranking).await?;
+    services
+        .store
+        .write_ranking(context.run.run_id, &ranking)
+        .await?;
     events.push(EventPayload::RankingComputed {
         ranking: ranking.clone(),
     });
@@ -105,10 +108,8 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
         "minimum_line_coverage": minimum_coverage,
         "baseline_commit": baseline_commit.as_str(),
     });
-    let evidence = AttemptEvidence::with_input(input).with_streams(
-        serde_json::to_vec_pretty(&ranking)?,
-        Vec::new(),
-    );
+    let evidence = AttemptEvidence::with_input(input)
+        .with_streams(serde_json::to_vec_pretty(&ranking)?, Vec::new());
 
     let metrics = json!({
         "eligible": ranking.entries.iter().filter(|entry| entry.eligible).count(),

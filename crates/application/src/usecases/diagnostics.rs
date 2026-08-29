@@ -303,9 +303,9 @@ pub async fn diagnose(
         ));
     }
 
-    let free_path_available = adapters
-        .iter()
-        .any(|adapter| adapter.kind == "agent" && adapter.available && !adapter.requires_paid_account);
+    let free_path_available = adapters.iter().any(|adapter| {
+        adapter.kind == "agent" && adapter.available && !adapter.requires_paid_account
+    });
 
     let mut report = DoctorReport {
         repository_path: repository.map(|path| path.display().to_string()),

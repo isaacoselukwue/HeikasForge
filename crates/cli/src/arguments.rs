@@ -10,16 +10,29 @@ use clap::{Parser, Subcommand, ValueEnum};
     long_about = "Heikas Forge plans a coding task, pauses for human approval, runs isolated implementation candidates, applies deterministic gates and commits the strongest valid result."
 )]
 pub struct Arguments {
-    #[arg(long, global = true, help = "Emit a single JSON object instead of human-readable output")]
+    #[arg(
+        long,
+        global = true,
+        help = "Emit a single JSON object instead of human-readable output"
+    )]
     pub json: bool,
 
     #[arg(long, global = true, help = "Suppress progress output but keep errors")]
     pub quiet: bool,
 
-    #[arg(long, global = true, help = "Disable colour even when the output is a terminal")]
+    #[arg(
+        long,
+        global = true,
+        help = "Disable colour even when the output is a terminal"
+    )]
     pub plain: bool,
 
-    #[arg(long, global = true, env = "HEIKAS_HOME", help = "Override the application data root")]
+    #[arg(
+        long,
+        global = true,
+        env = "HEIKAS_HOME",
+        help = "Override the application data root"
+    )]
     pub home: Option<PathBuf>,
 
     #[command(subcommand)]
@@ -36,7 +49,9 @@ pub enum Command {
         force: bool,
     },
 
-    #[command(about = "Inspect Git, agents, models, commands, scanners, permissions and disk space")]
+    #[command(
+        about = "Inspect Git, agents, models, commands, scanners, permissions and disk space"
+    )]
     Doctor {
         #[arg(default_value = ".")]
         path: PathBuf,
@@ -48,7 +63,11 @@ pub enum Command {
         repo: PathBuf,
         #[arg(long, conflicts_with = "task_file", help = "Inline task description")]
         task: Option<String>,
-        #[arg(long, conflicts_with = "task", help = "Path to a file containing the task")]
+        #[arg(
+            long,
+            conflicts_with = "task",
+            help = "Path to a file containing the task"
+        )]
         task_file: Option<PathBuf>,
         #[arg(long, help = "Number of implementation candidates, from 1 to 8")]
         candidates: Option<u8>,
@@ -60,9 +79,15 @@ pub enum Command {
         commit_policy: Option<CommitPolicyArgument>,
         #[arg(long, value_enum, help = "Quality profile applied to every candidate")]
         profile: Option<QualityProfileArgument>,
-        #[arg(long, help = "Minimum line coverage percentage required for eligibility")]
+        #[arg(
+            long,
+            help = "Minimum line coverage percentage required for eligibility"
+        )]
         minimum_coverage: Option<f64>,
-        #[arg(long, help = "Capture the current uncommitted changes as the candidate baseline")]
+        #[arg(
+            long,
+            help = "Capture the current uncommitted changes as the candidate baseline"
+        )]
         include_dirty: bool,
         #[arg(long, help = "Agent driver identifier")]
         agent: Option<String>,
@@ -77,14 +102,15 @@ pub enum Command {
     },
 
     #[command(about = "Resume a paused or interrupted run")]
-    Resume {
-        run: String,
-    },
+    Resume { run: String },
 
     #[command(about = "Approve the current plan version")]
     ApprovePlan {
         run: String,
-        #[arg(long, help = "Replace the plan with the contents of this file before approving")]
+        #[arg(
+            long,
+            help = "Replace the plan with the contents of this file before approving"
+        )]
         plan_file: Option<PathBuf>,
         #[arg(long, help = "Optional approval note")]
         note: Option<String>,
@@ -127,9 +153,7 @@ pub enum Command {
     },
 
     #[command(about = "Show a run summary and candidate table")]
-    Show {
-        run: String,
-    },
+    Show { run: String },
 
     #[command(about = "Stream structured run logs")]
     Logs {
@@ -160,11 +184,18 @@ pub enum Command {
     Ui {
         #[arg(long)]
         run: Option<String>,
-        #[arg(long, default_value_t = 0, help = "Preferred loopback port, zero selects any free port")]
+        #[arg(
+            long,
+            default_value_t = 0,
+            help = "Preferred loopback port, zero selects any free port"
+        )]
         port: u16,
         #[arg(long, help = "Do not open a browser window automatically")]
         no_open: bool,
-        #[arg(long, help = "Start in demonstration mode with the deterministic agent")]
+        #[arg(
+            long,
+            help = "Start in demonstration mode with the deterministic agent"
+        )]
         demonstration: bool,
         #[arg(long, hide = true, help = "Bind every interface, for development only")]
         unsafe_bind_all_interfaces: bool,
@@ -177,7 +208,10 @@ pub enum Command {
         force: bool,
     },
 
-    #[command(name = "internal-readme", about = "Create or refresh the local untracked internal notes")]
+    #[command(
+        name = "internal-readme",
+        about = "Create or refresh the local untracked internal notes"
+    )]
     InternalReadme {
         #[arg(default_value = ".")]
         path: PathBuf,

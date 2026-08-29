@@ -25,7 +25,9 @@ pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>>
                 findings.push(
                     PolicyFinding::violation(
                         RULE,
-                        format!("the path segment `{segment}` is a prohibited vague container name"),
+                        format!(
+                            "the path segment `{segment}` is a prohibited vague container name"
+                        ),
                         "Rename the module after the responsibility that it owns.",
                     )
                     .in_file(path.clone()),

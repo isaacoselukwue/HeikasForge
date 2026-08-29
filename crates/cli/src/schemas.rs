@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use heikas_application::configuration::EffectiveConfiguration;
+use heikas_application::error::{ApplicationError, ApplicationResult};
 use heikas_application::model::detail::RunDetail;
 use heikas_application::model::doctor::DoctorReport;
 use heikas_application::model::request::CreateRunRequest;
@@ -10,7 +11,6 @@ use heikas_domain::node::NodeResult;
 use heikas_domain::review::ReviewReport;
 use heikas_domain::score::Ranking;
 use heikas_domain::state::RunProjection;
-use heikas_application::error::{ApplicationError, ApplicationResult};
 use schemars::schema_for;
 
 pub fn write_all(output: &Path) -> ApplicationResult<Vec<String>> {
@@ -18,8 +18,14 @@ pub fn write_all(output: &Path) -> ApplicationResult<Vec<String>> {
         ApplicationError::Storage(format!("could not create `{}`: {error}", output.display()))
     })?;
     let documents = vec![
-        ("run.schema.json", serde_json::to_value(schema_for!(RunProjection))?),
-        ("event.schema.json", serde_json::to_value(schema_for!(DurableEvent))?),
+        (
+            "run.schema.json",
+            serde_json::to_value(schema_for!(RunProjection))?,
+        ),
+        (
+            "event.schema.json",
+            serde_json::to_value(schema_for!(DurableEvent))?,
+        ),
         (
             "node-result.schema.json",
             serde_json::to_value(schema_for!(NodeResult))?,

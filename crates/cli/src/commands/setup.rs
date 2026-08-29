@@ -39,9 +39,11 @@ pub async fn init(
     let notes = internal_notes::write(&repository)?;
     let outcome = InitOutcome {
         configuration_path: written.display().to_string(),
-        project_kind: heikas_infrastructure::configuration::detection::detect_project_kind(&repository)
-            .as_str()
-            .to_string(),
+        project_kind: heikas_infrastructure::configuration::detection::detect_project_kind(
+            &repository,
+        )
+        .as_str()
+        .to_string(),
         commands: configuration
             .commands
             .commands
@@ -55,7 +57,10 @@ pub async fn init(
         text.push_str(&palette.heading("Repository prepared\n"));
         text.push_str(&format!("Configuration: {}\n", outcome.configuration_path));
         text.push_str(&format!("Project kind: {}\n", outcome.project_kind));
-        text.push_str(&format!("Internal notes: {}\n", outcome.internal_notes_path));
+        text.push_str(&format!(
+            "Internal notes: {}\n",
+            outcome.internal_notes_path
+        ));
         text.push_str("Commands:\n");
         for command in &outcome.commands {
             text.push_str(&format!("  {command}\n"));
@@ -151,8 +156,10 @@ pub struct InternalNotesOutcome {
 pub fn internal_readme(context: &CommandContext, path: &Path) -> ApplicationResult<ExitCode> {
     let repository = heikas_infrastructure::paths::canonical_root(path)?;
     let written = internal_notes::refresh(&repository)?;
-    let tracked = heikas_policy::repository::path_is_tracked(&repository, internal_notes::FILE_NAME);
-    let ignored = heikas_policy::repository::path_is_ignored(&repository, internal_notes::FILE_NAME);
+    let tracked =
+        heikas_policy::repository::path_is_tracked(&repository, internal_notes::FILE_NAME);
+    let ignored =
+        heikas_policy::repository::path_is_ignored(&repository, internal_notes::FILE_NAME);
     let outcome = InternalNotesOutcome {
         path: written.display().to_string(),
         tracked,

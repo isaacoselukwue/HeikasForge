@@ -14,7 +14,10 @@ use crate::ports::quality::{ReviewProvider, TestGateRunner};
 #[async_trait]
 pub trait ConfigurationResolver: Send + Sync {
     async fn detect(&self, repository: &Path) -> ApplicationResult<EffectiveConfiguration>;
-    async fn resolve(&self, request: &CreateRunRequest) -> ApplicationResult<EffectiveConfiguration>;
+    async fn resolve(
+        &self,
+        request: &CreateRunRequest,
+    ) -> ApplicationResult<EffectiveConfiguration>;
     async fn write_repository_configuration(
         &self,
         repository: &Path,

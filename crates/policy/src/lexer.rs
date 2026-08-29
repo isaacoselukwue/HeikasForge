@@ -238,10 +238,7 @@ fn consume_rust_raw_string(cursor: &mut Cursor<'_>) {
             cursor.emit(character);
         }
     }
-    loop {
-        let Some(character) = cursor.peek(0) else {
-            break;
-        };
+    while let Some(character) = cursor.peek(0) {
         if character == '"' {
             let mut matched = 0usize;
             while cursor.peek(1 + matched) == Some('#') && matched < hashes {
@@ -321,7 +318,25 @@ fn regex_literal_allowed(previous: Option<char>) -> bool {
         None => true,
         Some(character) => matches!(
             character,
-            '(' | ',' | '=' | ':' | '[' | '!' | '&' | '|' | '?' | '{' | '}' | ';' | '+' | '-' | '*' | '%' | '<' | '>' | '~' | '^'
+            '(' | ','
+                | '='
+                | ':'
+                | '['
+                | '!'
+                | '&'
+                | '|'
+                | '?'
+                | '{'
+                | '}'
+                | ';'
+                | '+'
+                | '-'
+                | '*'
+                | '%'
+                | '<'
+                | '>'
+                | '~'
+                | '^'
         ),
     }
 }

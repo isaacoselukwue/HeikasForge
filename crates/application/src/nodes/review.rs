@@ -18,7 +18,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     let configuration = context.configuration();
     let candidate_id = context
         .candidate_id()
-        .ok_or_else(|| ApplicationError::Internal("the review node requires a candidate".to_string()))?
+        .ok_or_else(|| {
+            ApplicationError::Internal("the review node requires a candidate".to_string())
+        })?
         .clone();
     let worktree = candidate_worktree(context, &candidate_id).await?;
     let baseline_commit = baseline(context)?;

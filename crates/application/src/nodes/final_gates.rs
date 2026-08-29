@@ -67,7 +67,10 @@ pub async fn final_test(context: &NodeContext<'_>) -> ApplicationResult<NodeOutp
         candidate_id: None,
         node_id: NodeId::FinalTest,
         passed,
-        commands: commands.iter().map(|command| command.id.to_string()).collect(),
+        commands: commands
+            .iter()
+            .map(|command| command.id.to_string())
+            .collect(),
         failed_commands: failed_commands.clone(),
         line_coverage_percent: evidence_bundle.line_coverage_percent,
         duration: evidence_bundle.total_duration,
@@ -105,7 +108,14 @@ pub async fn final_test(context: &NodeContext<'_>) -> ApplicationResult<NodeOutp
         failed_commands.join(", ")
     );
     events.extend(promotion_events(context, &winner, &detail));
-    finish_with_promotion(context, &winner, events, artifacts, metrics, attempt_evidence)
+    finish_with_promotion(
+        context,
+        &winner,
+        events,
+        artifacts,
+        metrics,
+        attempt_evidence,
+    )
 }
 
 pub async fn final_review(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput> {
@@ -197,11 +207,9 @@ pub async fn final_review(context: &NodeContext<'_>) -> ApplicationResult<NodeOu
 }
 
 fn winner_of(context: &NodeContext<'_>) -> ApplicationResult<CandidateId> {
-    context
-        .projection
-        .winner
-        .clone()
-        .ok_or_else(|| ApplicationError::Internal("no winner is selected for the final gates".to_string()))
+    context.projection.winner.clone().ok_or_else(|| {
+        ApplicationError::Internal("no winner is selected for the final gates".to_string())
+    })
 }
 
 fn promotion_events(

@@ -14,12 +14,14 @@ use crate::configuration::LayeredConfigurationResolver;
 use crate::export::ZipEvidenceExporter;
 use crate::git::CommandLineGitService;
 use crate::layout::StoreLayout;
-use crate::process::SupervisedProcessRunner;
 use crate::process::supervisor::essential_environment_variables;
+use crate::process::SupervisedProcessRunner;
 use crate::redaction::PatternRedactor;
 use crate::runtime::AdapterRuntimeFactory;
 use crate::store::{FileRunLocks, FileRunStore};
-use crate::system::{LocalHostEnvironment, OperatingSystemIdentity, SystemClock, UuidIdentifierFactory};
+use crate::system::{
+    LocalHostEnvironment, OperatingSystemIdentity, SystemClock, UuidIdentifierFactory,
+};
 use crate::telemetry::{BroadcastEventPublisher, FileRunLog};
 
 pub const DEFAULT_AUTHOR_NAME: &str = "Isaac Oselukwue";

@@ -25,7 +25,10 @@ pub fn router() -> Router<ApiState> {
             "/api/v1/runs/{run_id}/plan",
             get(plan::read_plan).put(plan::update_plan),
         )
-        .route("/api/v1/runs/{run_id}/plan/approve", post(plan::approve_plan))
+        .route(
+            "/api/v1/runs/{run_id}/plan/approve",
+            post(plan::approve_plan),
+        )
         .route("/api/v1/runs/{run_id}/plan/revise", post(plan::revise_plan))
         .route("/api/v1/runs/{run_id}/plan/reject", post(plan::reject_plan))
         .route(

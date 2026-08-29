@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TimelineEntry",
+  "type": "object",
+  "required": [
+    "event_type",
+    "level",
+    "recorded_at",
+    "sequence",
+    "summary"
+  ],
+  "properties": {
+    "sequence": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "recorded_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "node_id": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/NodeId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "node_label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidate_id": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CandidateId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "attempt": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "duration": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DurationMs"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "level": {
+      "$ref": "#/definitions/TimelineLevel"
+    }
+  },
+  "definitions": {
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "NodeId": {
+      "type": "string",
+      "enum": [
+        "prepare",
+        "plan",
+        "approval",
+        "fan_out",
+        "implement_candidate",
+        "test_candidate",
+        "review_candidate",
+        "repair_candidate",
+        "join",
+        "integrate_winner",
+        "final_test",
+        "final_review",
+        "commit_approval",
+        "commit"
+      ]
+    },
+    "CandidateId": {
+      "type": "string"
+    },
+    "DurationMs": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "TimelineLevel": {
+      "type": "string",
+      "enum": [
+        "information",
+        "success",
+        "warning",
+        "failure"
+      ]
+    }
+  }
+}

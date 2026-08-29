@@ -174,7 +174,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
                     validation.missing_headings.join(", ")
                 ),
             )
-            .with_remedy("Ask the planning agent for a revision that includes every required heading."),
+            .with_remedy(
+                "Ask the planning agent for a revision that includes every required heading.",
+            ),
             None,
         )
         .with_evidence(evidence));

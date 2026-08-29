@@ -274,7 +274,8 @@ impl ReviewProvider for SonarMcpProvider {
             truncated: outcome.stdout_truncated,
         }];
 
-        let evidence: Option<McpToolEvidence> = serde_json::from_str(outcome.stdout_text().trim()).ok();
+        let evidence: Option<McpToolEvidence> =
+            serde_json::from_str(outcome.stdout_text().trim()).ok();
         let Some(evidence) = evidence else {
             return Err(ApplicationError::QualityProvider(
                 "the SonarQube MCP adapter produced no structured tool evidence".to_string(),
@@ -345,7 +346,9 @@ impl ReviewProvider for SonarMcpProvider {
                 failure_summary: (!passed).then(|| {
                     format!(
                         "the SonarQube quality gate reported `{}`",
-                        evidence.quality_gate.unwrap_or_else(|| "unknown".to_string())
+                        evidence
+                            .quality_gate
+                            .unwrap_or_else(|| "unknown".to_string())
                     )
                 }),
             },

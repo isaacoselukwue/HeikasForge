@@ -37,7 +37,8 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
         let candidate_id = CandidateId::derive(context.run.run_id, ordinal);
         let strategy = CandidateStrategy::for_ordinal(ordinal_value);
         let relative = candidate_worktree_relative(context.run.run_id, &candidate_id);
-        let branch_text = worktree_role_branch(context, WorktreeRole::Candidate, Some(&candidate_id));
+        let branch_text =
+            worktree_role_branch(context, WorktreeRole::Candidate, Some(&candidate_id));
         let branch = BranchName::from_str(&branch_text)?;
 
         let handle = services

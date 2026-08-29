@@ -8,7 +8,19 @@ pub const DEFAULT_CANDIDATES: u8 = 3;
 pub const MAXIMUM_REPAIRS: u32 = 10;
 pub const DEFAULT_REPAIRS: u32 = 3;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(transparent)]
 pub struct CandidateCount(u8);
 

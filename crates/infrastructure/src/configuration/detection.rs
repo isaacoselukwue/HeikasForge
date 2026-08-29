@@ -50,29 +50,92 @@ pub fn detect_project_kind(repository: &Path) -> ProjectKind {
 pub fn proposed_commands(kind: ProjectKind) -> Vec<CommandSpecification> {
     match kind {
         ProjectKind::Rust => vec![
-            command("format", CommandKind::Format, "cargo", &["fmt", "--all", "--", "--check"], 180, true),
+            command(
+                "format",
+                CommandKind::Format,
+                "cargo",
+                &["fmt", "--all", "--", "--check"],
+                180,
+                true,
+            ),
             command(
                 "lint",
                 CommandKind::Lint,
                 "cargo",
-                &["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
+                &[
+                    "clippy",
+                    "--workspace",
+                    "--all-targets",
+                    "--",
+                    "-D",
+                    "warnings",
+                ],
                 900,
                 true,
             ),
-            command("test", CommandKind::Test, "cargo", &["test", "--workspace"], 1_200, true),
+            command(
+                "test",
+                CommandKind::Test,
+                "cargo",
+                &["test", "--workspace"],
+                1_200,
+                true,
+            ),
         ],
         ProjectKind::NodeJavaScript => vec![
-            command("lint", CommandKind::Lint, "npm", &["run", "lint"], 600, true),
+            command(
+                "lint",
+                CommandKind::Lint,
+                "npm",
+                &["run", "lint"],
+                600,
+                true,
+            ),
             command("test", CommandKind::Test, "npm", &["test"], 900, true),
         ],
         ProjectKind::Python => vec![
-            command("lint", CommandKind::Lint, "python3", &["-m", "ruff", "check", "."], 600, false),
-            command("test", CommandKind::Test, "python3", &["-m", "pytest", "-q"], 900, true),
+            command(
+                "lint",
+                CommandKind::Lint,
+                "python3",
+                &["-m", "ruff", "check", "."],
+                600,
+                false,
+            ),
+            command(
+                "test",
+                CommandKind::Test,
+                "python3",
+                &["-m", "pytest", "-q"],
+                900,
+                true,
+            ),
         ],
         ProjectKind::Go => vec![
-            command("format", CommandKind::Format, "gofmt", &["-l", "."], 180, true),
-            command("lint", CommandKind::Lint, "go", &["vet", "./..."], 600, true),
-            command("test", CommandKind::Test, "go", &["test", "./..."], 900, true),
+            command(
+                "format",
+                CommandKind::Format,
+                "gofmt",
+                &["-l", "."],
+                180,
+                true,
+            ),
+            command(
+                "lint",
+                CommandKind::Lint,
+                "go",
+                &["vet", "./..."],
+                600,
+                true,
+            ),
+            command(
+                "test",
+                CommandKind::Test,
+                "go",
+                &["test", "./..."],
+                900,
+                true,
+            ),
         ],
         ProjectKind::Unknown => Vec::new(),
     }
@@ -87,7 +150,9 @@ fn command(
     required: bool,
 ) -> CommandSpecification {
     CommandSpecification {
-        id: CommandId::from_str(id).unwrap_or_else(|_| CommandId::from_str("command").expect("literal command identifier is valid")),
+        id: CommandId::from_str(id).unwrap_or_else(|_| {
+            CommandId::from_str("command").expect("literal command identifier is valid")
+        }),
         kind,
         program: program.to_string(),
         args: args.iter().map(|value| (*value).to_string()).collect(),

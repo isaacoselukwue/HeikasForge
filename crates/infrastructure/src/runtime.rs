@@ -74,11 +74,12 @@ impl RuntimeFactory for AdapterRuntimeFactory {
         &self,
         configuration: &EffectiveConfiguration,
     ) -> ApplicationResult<Vec<Arc<dyn ReviewProvider>>> {
-        let mut providers: Vec<Arc<dyn ReviewProvider>> = vec![Arc::new(LocalQualityProvider::new(
-            Arc::clone(&self.processes),
-            Arc::clone(&self.git),
-            Arc::clone(&self.clock),
-        ))];
+        let mut providers: Vec<Arc<dyn ReviewProvider>> =
+            vec![Arc::new(LocalQualityProvider::new(
+                Arc::clone(&self.processes),
+                Arc::clone(&self.git),
+                Arc::clone(&self.clock),
+            ))];
         if configuration.quality.sonar_scanner.enabled {
             providers.push(Arc::new(SonarScannerProvider::new(
                 configuration.quality.sonar_scanner.clone(),

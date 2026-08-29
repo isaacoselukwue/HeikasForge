@@ -92,7 +92,11 @@ impl CommandLineGitService {
         Ok(outcome.stdout_text())
     }
 
-    async fn config_value(&self, repository: &Path, key: &str) -> ApplicationResult<Option<String>> {
+    async fn config_value(
+        &self,
+        repository: &Path,
+        key: &str,
+    ) -> ApplicationResult<Option<String>> {
         let outcome = self.git(repository, &["config", "--get", key]).await?;
         if outcome.succeeded() {
             let value = outcome.stdout_text().trim().to_string();
@@ -104,7 +108,10 @@ impl CommandLineGitService {
 
     async fn resolve_default_branch(&self, repository: &Path) -> ApplicationResult<String> {
         let remote = self
-            .git(repository, &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
+            .git(
+                repository,
+                &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+            )
             .await?;
         if remote.succeeded() {
             let text = remote.stdout_text();
@@ -131,13 +138,17 @@ impl CommandLineGitService {
         Ok(())
     }
 
-    fn write_temporary_patch(&self, patch: &[u8]) -> ApplicationResult<(PathBuf, tempfile::TempDir)> {
+    fn write_temporary_patch(
+        &self,
+        patch: &[u8],
+    ) -> ApplicationResult<(PathBuf, tempfile::TempDir)> {
         let directory = tempfile::Builder::new()
             .prefix("heikas-patch-")
             .tempdir()
             .map_err(|error| ApplicationError::Storage(error.to_string()))?;
         let path = directory.path().join("change.patch");
-        let mut file = std::fs::File::create(&path).map_err(|error| storage(&path, "create", error))?;
+        let mut file =
+            std::fs::File::create(&path).map_err(|error| storage(&path, "create", error))?;
         file.write_all(patch)
             .map_err(|error| storage(&path, "write", error))?;
         file.sync_all()
@@ -191,7 +202,10 @@ impl GitService for CommandLineGitService {
             .to_string();
 
         let status = self
-            .git_checked(&root, &["status", "--porcelain=v1", "--untracked-files=all"])
+            .git_checked(
+                &root,
+                &["status", "--porcelain=v1", "--untracked-files=all"],
+            )
             .await?;
         let mut staged = Vec::new();
         let mut unstaged = Vec::new();
@@ -347,7 +361,11 @@ impl GitService for CommandLineGitService {
         })
     }
 
-    async fn apply_snapshot(&self, worktree: &Path, snapshot: &DirtySnapshot) -> ApplicationResult<()> {
+    async fn apply_snapshot(
+        &self,
+        worktree: &Path,
+        snapshot: &DirtySnapshot,
+    ) -> ApplicationResult<()> {
         if !snapshot.tracked_patch.is_empty() {
             self.apply_patch(worktree, &snapshot.tracked_patch).await?;
         }
@@ -455,7 +473,11 @@ impl GitService for CommandLineGitService {
         }
     }
 
-    async fn reset_worktree(&self, worktree: &Path, baseline: &CommitHash) -> ApplicationResult<()> {
+    async fn reset_worktree(
+        &self,
+        worktree: &Path,
+        baseline: &CommitHash,
+    ) -> ApplicationResult<()> {
         self.git_checked(worktree, &["reset", "--hard", baseline.as_str()])
             .await?;
         self.git_checked(worktree, &["clean", "-fd"]).await?;
@@ -499,8 +521,11 @@ impl GitService for CommandLineGitService {
                     .to_string(),
             )
         })?;
-        self.git_checked(&request.worktree, &["checkout", "-B", request.branch.as_str()])
-            .await?;
+        self.git_checked(
+            &request.worktree,
+            &["checkout", "-B", request.branch.as_str()],
+        )
+        .await?;
         self.git_checked(&request.worktree, &["reset"]).await?;
 
         let mut add_arguments = vec!["add".to_string(), "--".to_string()];
@@ -511,7 +536,10 @@ impl GitService for CommandLineGitService {
         let staged = self
             .git_checked(&request.worktree, &["diff", "--cached", "--name-only"])
             .await?;
-        let staged_count = staged.lines().filter(|line| !line.trim().is_empty()).count() as u32;
+        let staged_count = staged
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .count() as u32;
         if staged_count == 0 {
             return Err(ApplicationError::Git(
                 "no paths were staged for the commit".to_string(),
@@ -526,7 +554,10 @@ impl GitService for CommandLineGitService {
         let environment = vec![
             ("GIT_AUTHOR_NAME".to_string(), request.author_name.clone()),
             ("GIT_AUTHOR_EMAIL".to_string(), email.clone()),
-            ("GIT_COMMITTER_NAME".to_string(), request.committer_name.clone()),
+            (
+                "GIT_COMMITTER_NAME".to_string(),
+                request.committer_name.clone(),
+            ),
             ("GIT_COMMITTER_EMAIL".to_string(), email),
         ];
         let outcome = self

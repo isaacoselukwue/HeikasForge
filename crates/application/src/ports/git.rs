@@ -99,12 +99,25 @@ pub trait GitService: Send + Sync {
         baseline: &CommitHash,
     ) -> ApplicationResult<(Vec<u8>, DiffSummary)>;
     async fn apply_patch(&self, worktree: &Path, patch: &[u8]) -> ApplicationResult<()>;
-    async fn check_patch_applies(&self, worktree: &Path, patch: &[u8]) -> ApplicationResult<Result<(), String>>;
-    async fn reset_worktree(&self, worktree: &Path, baseline: &CommitHash) -> ApplicationResult<()>;
+    async fn check_patch_applies(
+        &self,
+        worktree: &Path,
+        patch: &[u8],
+    ) -> ApplicationResult<Result<(), String>>;
+    async fn reset_worktree(&self, worktree: &Path, baseline: &CommitHash)
+        -> ApplicationResult<()>;
     async fn remove_worktree(&self, repository: &Path, worktree: &Path) -> ApplicationResult<()>;
-    async fn list_run_worktrees(&self, repository: &Path, run_id: RunId) -> ApplicationResult<Vec<PathBuf>>;
+    async fn list_run_worktrees(
+        &self,
+        repository: &Path,
+        run_id: RunId,
+    ) -> ApplicationResult<Vec<PathBuf>>;
     async fn create_commit(&self, request: &CommitRequest) -> ApplicationResult<CommitOutcome>;
-    async fn changed_paths(&self, worktree: &Path, baseline: &CommitHash) -> ApplicationResult<Vec<String>>;
+    async fn changed_paths(
+        &self,
+        worktree: &Path,
+        baseline: &CommitHash,
+    ) -> ApplicationResult<Vec<String>>;
     async fn list_paths(&self, worktree: &Path, limit: usize) -> ApplicationResult<Vec<String>>;
     async fn file_at_commit(
         &self,

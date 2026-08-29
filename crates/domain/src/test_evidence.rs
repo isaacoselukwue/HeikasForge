@@ -100,7 +100,9 @@ impl TestEvidence {
                 record.required
                     && matches!(
                         record.outcome,
-                        CommandOutcome::Failed | CommandOutcome::TimedOut | CommandOutcome::Cancelled
+                        CommandOutcome::Failed
+                            | CommandOutcome::TimedOut
+                            | CommandOutcome::Cancelled
                     )
             })
             .map(|record| (record.command_id.to_string(), record.failure_summary()))
@@ -112,7 +114,10 @@ impl TestEvidence {
             .iter()
             .filter(|record| {
                 record.required
-                    && matches!(record.outcome, CommandOutcome::ReportMissing | CommandOutcome::NotRun)
+                    && matches!(
+                        record.outcome,
+                        CommandOutcome::ReportMissing | CommandOutcome::NotRun
+                    )
             })
             .map(|record| record.command_id.to_string())
             .collect()
@@ -120,7 +125,11 @@ impl TestEvidence {
 
     pub fn failure_fingerprint(&self) -> Option<String> {
         let mut material = String::new();
-        for record in self.commands.iter().filter(|record| !record.outcome.is_pass()) {
+        for record in self
+            .commands
+            .iter()
+            .filter(|record| !record.outcome.is_pass())
+        {
             material.push_str(record.command_id.as_str());
             material.push('\u{1f}');
             material.push_str(record.outcome.as_str());
@@ -143,7 +152,9 @@ impl TestEvidence {
         self.total_duration = self
             .commands
             .iter()
-            .fold(DurationMs::ZERO, |total, record| total.saturating_add(record.duration));
+            .fold(DurationMs::ZERO, |total, record| {
+                total.saturating_add(record.duration)
+            });
         self.line_coverage_percent = self
             .commands
             .iter()

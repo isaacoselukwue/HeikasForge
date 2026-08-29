@@ -11,8 +11,13 @@ use crate::error::PolicyResult;
 use crate::finding::PolicyReport;
 use crate::repository::TrackedRepository;
 
-pub const FIRST_PARTY_ROOTS: [&str; 5] =
-    ["crates/", "apps/web/src/", "apps/web/tests/", "xtask/", "scripts/"];
+pub const FIRST_PARTY_ROOTS: [&str; 5] = [
+    "crates/",
+    "apps/web/src/",
+    "apps/web/tests/",
+    "xtask/",
+    "scripts/",
+];
 
 pub const GENERATED_PATHS: [&str; 4] = [
     "apps/web/src/generated/",

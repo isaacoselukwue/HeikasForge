@@ -177,10 +177,7 @@ pub async fn timeline(
                     table.push(vec![
                         entry.sequence.to_string(),
                         entry.recorded_at.to_rfc3339(),
-                        entry
-                            .node_label
-                            .clone()
-                            .unwrap_or_else(|| "-".to_string()),
+                        entry.node_label.clone().unwrap_or_else(|| "-".to_string()),
                         entry
                             .candidate_id
                             .as_ref()

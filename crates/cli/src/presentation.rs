@@ -10,9 +10,8 @@ pub struct Palette {
 
 impl Palette {
     pub fn detect(force_plain: bool) -> Self {
-        let enabled = !force_plain
-            && std::io::stdout().is_terminal()
-            && std::env::var("NO_COLOR").is_err();
+        let enabled =
+            !force_plain && std::io::stdout().is_terminal() && std::env::var("NO_COLOR").is_err();
         Self { enabled }
     }
 
@@ -63,7 +62,9 @@ impl Palette {
     pub fn candidate_status(&self, status: CandidateStatus) -> String {
         match status {
             CandidateStatus::Eligible => self.success(status.label()),
-            CandidateStatus::Ineligible | CandidateStatus::Cancelled => self.failure(status.label()),
+            CandidateStatus::Ineligible | CandidateStatus::Cancelled => {
+                self.failure(status.label())
+            }
             CandidateStatus::Interrupted => self.warning(status.label()),
             _ => status.label().to_string(),
         }
@@ -114,9 +115,9 @@ impl Table {
         }
         output.push('\n');
         for row in &self.rows {
-            for index in 0..column_count {
+            for (index, width) in widths.iter().enumerate() {
                 let cell = row.get(index).map(String::as_str).unwrap_or("");
-                output.push_str(&pad(cell, widths[index]));
+                output.push_str(&pad(cell, *width));
                 if index + 1 < column_count {
                     output.push_str("  ");
                 }

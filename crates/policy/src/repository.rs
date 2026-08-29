@@ -11,12 +11,11 @@ pub struct TrackedRepository {
 
 impl TrackedRepository {
     pub fn discover(root: &Path) -> PolicyResult<Self> {
-        let canonical = std::fs::canonicalize(root).map_err(|error| {
-            PolicyError::RepositoryUnreadable {
+        let canonical =
+            std::fs::canonicalize(root).map_err(|error| PolicyError::RepositoryUnreadable {
                 path: root.display().to_string(),
                 detail: error.to_string(),
-            }
-        })?;
+            })?;
         let listing = run_git(&canonical, &["ls-files", "-z"])?;
         let tracked_files = listing
             .split('\0')

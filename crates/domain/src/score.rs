@@ -10,7 +10,9 @@ use crate::test_evidence::TestEvidence;
 
 pub const COVERAGE_SCALE: f64 = 1000.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum CoverageRank {
     Measured(i64),
@@ -45,7 +47,9 @@ impl fmt::Display for CoverageRank {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, schemars::JsonSchema,
+)]
 pub struct ScoreTuple {
     pub blocker_issues: u64,
     pub critical_issues: u64,
@@ -95,13 +99,19 @@ impl ScoreTuple {
             ScoreComponent::new("High issues", self.high_issues.to_string()),
             ScoreComponent::new("Medium issues", self.medium_issues.to_string()),
             ScoreComponent::new("New security weight", self.new_security_weight.to_string()),
-            ScoreComponent::new("New reliability weight", self.new_reliability_weight.to_string()),
+            ScoreComponent::new(
+                "New reliability weight",
+                self.new_reliability_weight.to_string(),
+            ),
             ScoreComponent::new(
                 "New maintainability weight",
                 self.new_maintainability_weight.to_string(),
             ),
             ScoreComponent::new("Line coverage", self.coverage_rank.to_string()),
-            ScoreComponent::new("Test integrity penalty", self.test_integrity_penalty.to_string()),
+            ScoreComponent::new(
+                "Test integrity penalty",
+                self.test_integrity_penalty.to_string(),
+            ),
             ScoreComponent::new("Changed lines", self.changed_lines.to_string()),
             ScoreComponent::new("Repair attempts", self.repair_attempts.to_string()),
             ScoreComponent::new(
@@ -213,7 +223,10 @@ pub struct EligibilityOutcome {
     pub reasons: Vec<ExclusionReason>,
 }
 
-pub fn evaluate_eligibility(input: &EligibilityInput, review: &AggregatedReview) -> EligibilityOutcome {
+pub fn evaluate_eligibility(
+    input: &EligibilityInput,
+    review: &AggregatedReview,
+) -> EligibilityOutcome {
     let mut reasons = Vec::new();
 
     match input.candidate_status {
@@ -245,7 +258,11 @@ pub fn evaluate_eligibility(input: &EligibilityInput, review: &AggregatedReview)
     if !review.has_required_provider() {
         reasons.push(ExclusionReason::RequiredReviewMissing);
     }
-    for report in review.reports.iter().filter(|report| report.required && !report.passed) {
+    for report in review
+        .reports
+        .iter()
+        .filter(|report| report.required && !report.passed)
+    {
         reasons.push(ExclusionReason::RequiredReviewFailed {
             provider: report.provider.clone(),
             detail: report
@@ -272,7 +289,8 @@ pub fn evaluate_eligibility(input: &EligibilityInput, review: &AggregatedReview)
         });
     }
 
-    if let (Some(measured), Some(required)) = (input.coverage_percent, input.minimum_line_coverage) {
+    if let (Some(measured), Some(required)) = (input.coverage_percent, input.minimum_line_coverage)
+    {
         if measured + f64::EPSILON < required {
             reasons.push(ExclusionReason::CoverageBelowThreshold { measured, required });
         }
@@ -358,7 +376,10 @@ fn build_rationale(entries: &[RankedCandidate], winner: Option<&CandidateId>) ->
         return lines;
     };
 
-    let Some(winning_entry) = entries.iter().find(|entry| &entry.candidate_id == winner_id) else {
+    let Some(winning_entry) = entries
+        .iter()
+        .find(|entry| &entry.candidate_id == winner_id)
+    else {
         return lines;
     };
     let Some(winning_score) = winning_entry.score.as_ref() else {

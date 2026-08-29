@@ -62,10 +62,7 @@ impl ReviewProvider for AdvisoryAiReviewProvider {
         let facts = PromptFacts {
             task_title: "Advisory review of the candidate change".to_string(),
             task_body: String::new(),
-            repository_summary: format!(
-                "Changed paths: {}",
-                context.changed_paths.join(", ")
-            ),
+            repository_summary: format!("Changed paths: {}", context.changed_paths.join(", ")),
             approved_plan_hash: None,
             approved_plan: None,
             strategy: None,

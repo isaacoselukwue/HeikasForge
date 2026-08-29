@@ -1,0 +1,539 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CandidateView",
+  "type": "object",
+  "required": [
+    "branch",
+    "candidate_id",
+    "changed_files",
+    "changed_lines",
+    "exclusion_reasons",
+    "exclusion_summaries",
+    "gate_duration",
+    "is_winner",
+    "ordinal",
+    "promotable",
+    "repair_budget",
+    "repairs_used",
+    "score_components",
+    "status",
+    "status_label",
+    "strategy",
+    "strategy_label"
+  ],
+  "properties": {
+    "candidate_id": {
+      "$ref": "#/definitions/CandidateId"
+    },
+    "ordinal": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0.0
+    },
+    "strategy": {
+      "type": "string"
+    },
+    "strategy_label": {
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/definitions/CandidateStatus"
+    },
+    "status_label": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "repairs_used": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "repair_budget": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "changed_files": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "changed_lines": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "gate_duration": {
+      "$ref": "#/definitions/DurationMs"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ScoreTuple"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "score_components": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ScoreComponent"
+      }
+    },
+    "exclusion_reasons": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ExclusionReason"
+      }
+    },
+    "exclusion_summaries": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rank": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "is_winner": {
+      "type": "boolean"
+    },
+    "promotable": {
+      "type": "boolean"
+    },
+    "tests_passed": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "review_passed": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "line_coverage_percent": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "double"
+    }
+  },
+  "definitions": {
+    "CandidateId": {
+      "type": "string"
+    },
+    "CandidateStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "preparing",
+        "implementing",
+        "testing",
+        "reviewing",
+        "repairing",
+        "eligible",
+        "ineligible",
+        "interrupted",
+        "cancelled"
+      ]
+    },
+    "DurationMs": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "ScoreTuple": {
+      "type": "object",
+      "required": [
+        "blocker_issues",
+        "candidate_id",
+        "changed_lines",
+        "coverage_rank",
+        "critical_issues",
+        "gate_duration_ms",
+        "high_issues",
+        "medium_issues",
+        "new_maintainability_weight",
+        "new_reliability_weight",
+        "new_security_weight",
+        "repair_attempts",
+        "test_integrity_penalty"
+      ],
+      "properties": {
+        "blocker_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "critical_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "high_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "medium_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_security_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_reliability_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_maintainability_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "coverage_rank": {
+          "$ref": "#/definitions/CoverageRank"
+        },
+        "test_integrity_penalty": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "changed_lines": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "repair_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "gate_duration_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "candidate_id": {
+          "$ref": "#/definitions/CandidateId"
+        }
+      }
+    },
+    "CoverageRank": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "measured"
+              ]
+            },
+            "value": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "missing"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ScoreComponent": {
+      "type": "object",
+      "required": [
+        "label",
+        "value"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "ExclusionReason": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "command_id",
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_test_failed"
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "command_id",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_test_missing"
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "provider",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_review_failed"
+              ]
+            },
+            "provider": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_review_missing"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason",
+            "rule_id"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "blocker_policy_finding"
+              ]
+            },
+            "rule_id": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "empty_diff"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "diff_does_not_apply"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "measured",
+            "reason",
+            "required"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "coverage_below_threshold"
+              ]
+            },
+            "measured": {
+              "type": "number",
+              "format": "double"
+            },
+            "required": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "budget",
+            "reason",
+            "used"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "repair_budget_exhausted"
+              ]
+            },
+            "used": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "budget": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "time_budget_exceeded"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "cancelled"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "interrupted"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "integration_failed"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

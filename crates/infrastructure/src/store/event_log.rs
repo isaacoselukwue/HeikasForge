@@ -87,7 +87,11 @@ impl EventLogFile {
             .collect())
     }
 
-    pub fn read_range(&self, from_sequence: u64, limit: usize) -> ApplicationResult<Vec<DurableEvent>> {
+    pub fn read_range(
+        &self,
+        from_sequence: u64,
+        limit: usize,
+    ) -> ApplicationResult<Vec<DurableEvent>> {
         Ok(self
             .read_all()?
             .into_iter()
@@ -98,11 +102,9 @@ impl EventLogFile {
 
     pub fn read_all(&self) -> ApplicationResult<Vec<DurableEvent>> {
         let (events, _) = self.read_complete_records()?;
-        let mut expected_sequence = 1;
         let mut previous_hash = GENESIS_HASH.to_string();
-        for event in &events {
+        for (expected_sequence, event) in (1..).zip(events.iter()) {
             event.verify(expected_sequence, &previous_hash)?;
-            expected_sequence += 1;
             previous_hash = event.chain_hash();
         }
         Ok(events)
@@ -120,11 +122,9 @@ impl EventLogFile {
 
     fn verify_internal(&self) -> ApplicationResult<ChainVerification> {
         let (events, partial) = self.read_complete_records()?;
-        let mut expected_sequence = 1;
         let mut previous_hash = GENESIS_HASH.to_string();
-        for event in &events {
+        for (expected_sequence, event) in (1..).zip(events.iter()) {
             event.verify(expected_sequence, &previous_hash)?;
-            expected_sequence += 1;
             previous_hash = event.chain_hash();
         }
         Ok(ChainVerification {
@@ -138,7 +138,9 @@ impl EventLogFile {
     fn read_complete_records(&self) -> ApplicationResult<(Vec<DurableEvent>, bool)> {
         let file = match fs::File::open(&self.path) {
             Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok((Vec::new(), false)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Ok((Vec::new(), false))
+            }
             Err(error) => return Err(storage(&self.path, "open", error)),
         };
         let reader = BufReader::new(file);

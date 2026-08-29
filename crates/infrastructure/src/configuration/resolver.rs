@@ -320,7 +320,10 @@ fn convert_command(section: &CommandSection) -> ApplicationResult<CommandSpecifi
             .unwrap_or(ReportFormat::None),
         report_path: section.report_path.clone(),
         environment: section.environment.clone().unwrap_or_default(),
-        success_exit_codes: section.success_exit_codes.clone().unwrap_or_else(|| vec![0]),
+        success_exit_codes: section
+            .success_exit_codes
+            .clone()
+            .unwrap_or_else(|| vec![0]),
     };
     specification.validate()?;
     Ok(specification)
@@ -346,7 +349,10 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
         Ok(configuration)
     }
 
-    async fn resolve(&self, request: &CreateRunRequest) -> ApplicationResult<EffectiveConfiguration> {
+    async fn resolve(
+        &self,
+        request: &CreateRunRequest,
+    ) -> ApplicationResult<EffectiveConfiguration> {
         let repository = crate::paths::canonical_root(&request.repository_path)?;
         let mut configuration = self.detect(&repository).await?;
         configuration.repository_path = repository;
@@ -371,7 +377,9 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
 
 pub fn render_document(configuration: &EffectiveConfiguration) -> String {
     let mut text = String::new();
-    text.push_str(&format!("schema_version = {CONFIGURATION_SCHEMA_VERSION}\n\n"));
+    text.push_str(&format!(
+        "schema_version = {CONFIGURATION_SCHEMA_VERSION}\n\n"
+    ));
     text.push_str("[run]\n");
     text.push_str(&format!(
         "candidates = {}\n",

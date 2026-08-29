@@ -20,11 +20,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     let configuration = context.configuration();
     let worktree = integration_worktree(context).await?;
     let baseline_commit = baseline(context)?;
-    let winner = context
-        .projection
-        .winner
-        .clone()
-        .ok_or_else(|| ApplicationError::Internal("no winner is selected for the commit".to_string()))?;
+    let winner = context.projection.winner.clone().ok_or_else(|| {
+        ApplicationError::Internal("no winner is selected for the commit".to_string())
+    })?;
 
     let facts = services.git.inspect(&configuration.repository_path).await?;
     let evidence = AttemptEvidence::with_input(json!({
@@ -34,11 +32,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     }));
 
     let Some(email) = facts.configured_user_email.clone() else {
-        return Ok(NodeOutput::paused()
-            .with_evidence(evidence)
-            .with_warning(
-                "the repository has no configured Git email, so no commit identity can be derived",
-            ));
+        return Ok(NodeOutput::paused().with_evidence(evidence).with_warning(
+            "the repository has no configured Git email, so no commit identity can be derived",
+        ));
     };
     if email.trim().is_empty() {
         return Ok(NodeOutput::paused().with_evidence(evidence).with_warning(
@@ -104,7 +100,9 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     let outcome = match services.git.create_commit(&request).await {
         Ok(outcome) => outcome,
         Err(ApplicationError::UserActionRequired(detail)) => {
-            return Ok(NodeOutput::paused().with_evidence(evidence).with_warning(detail));
+            return Ok(NodeOutput::paused()
+                .with_evidence(evidence)
+                .with_warning(detail));
         }
         Err(error) => return Err(error),
     };
@@ -168,7 +166,10 @@ fn commit_body(context: &NodeContext<'_>, changed_paths: &[String]) -> String {
         body.push_str(&format!("- {path}\n"));
     }
     if changed_paths.len() > 50 {
-        body.push_str(&format!("- and {} further paths\n", changed_paths.len() - 50));
+        body.push_str(&format!(
+            "- and {} further paths\n",
+            changed_paths.len() - 50
+        ));
     }
     body.push_str("\nGates satisfied:\n");
     for command in context.configuration().required_commands() {

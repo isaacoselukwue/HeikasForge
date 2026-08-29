@@ -111,7 +111,12 @@ pub async fn evaluate(
 
         if is_quality_configuration(path) {
             if let Some(current) = &current_text {
-                issues.extend(coverage_threshold_issues(path, &baseline_text, current, approved));
+                issues.extend(coverage_threshold_issues(
+                    path,
+                    &baseline_text,
+                    current,
+                    approved,
+                ));
             } else {
                 issues.push(issue(
                     path,
@@ -282,7 +287,12 @@ fn issue(
     };
     ReviewIssue {
         provider: PROVIDER.to_string(),
-        fingerprint: ReviewIssue::compute_fingerprint(PROVIDER, rule_id, Some(path), &final_message),
+        fingerprint: ReviewIssue::compute_fingerprint(
+            PROVIDER,
+            rule_id,
+            Some(path),
+            &final_message,
+        ),
         rule_id: rule_id.to_string(),
         category: IssueCategory::TestIntegrity,
         severity: effective,

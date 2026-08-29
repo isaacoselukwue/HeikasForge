@@ -118,7 +118,11 @@ impl FileRunStore {
 
 #[async_trait]
 impl EventStore for FileRunStore {
-    async fn append(&self, run_id: RunId, payload: EventPayload) -> ApplicationResult<DurableEvent> {
+    async fn append(
+        &self,
+        run_id: RunId,
+        payload: EventPayload,
+    ) -> ApplicationResult<DurableEvent> {
         let log = self.log_for(run_id).await;
         log.append(
             run_id,
@@ -129,7 +133,11 @@ impl EventStore for FileRunStore {
         .await
     }
 
-    async fn read_after(&self, run_id: RunId, sequence: u64) -> ApplicationResult<Vec<DurableEvent>> {
+    async fn read_after(
+        &self,
+        run_id: RunId,
+        sequence: u64,
+    ) -> ApplicationResult<Vec<DurableEvent>> {
         let log = self.log_for(run_id).await;
         log.read_after(sequence)
     }
@@ -168,7 +176,11 @@ impl ProjectionStore for FileRunStore {
         read_json(&self.layout.manifest_file(run_id))
     }
 
-    async fn store_metrics(&self, run_id: RunId, projection: &RunProjection) -> ApplicationResult<()> {
+    async fn store_metrics(
+        &self,
+        run_id: RunId,
+        projection: &RunProjection,
+    ) -> ApplicationResult<()> {
         let document = serde_json::json!({
             "schema_version": 1,
             "run_id": run_id,
@@ -214,7 +226,10 @@ impl RunCatalogue for FileRunStore {
             configuration: configuration.clone(),
         };
         write_atomic_json(&self.layout.run_descriptor(run_id), &descriptor)?;
-        write_atomic_json(&self.layout.artifact_index(run_id), &ArtifactIndex::default())
+        write_atomic_json(
+            &self.layout.artifact_index(run_id),
+            &ArtifactIndex::default(),
+        )
     }
 
     async fn exists(&self, run_id: RunId) -> ApplicationResult<bool> {
@@ -234,7 +249,8 @@ impl RunCatalogue for FileRunStore {
             let Ok(run_id) = entry.file_name().to_string_lossy().parse::<RunId>() else {
                 continue;
             };
-            let Some(projection) = read_json::<RunProjection>(&self.layout.state_file(run_id))? else {
+            let Some(projection) = read_json::<RunProjection>(&self.layout.state_file(run_id))?
+            else {
                 continue;
             };
             headers.push(RunHeader {
@@ -245,7 +261,7 @@ impl RunCatalogue for FileRunStore {
                 task_title: projection.task_title.clone(),
             });
         }
-        headers.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        headers.sort_by_key(|header| std::cmp::Reverse(header.created_at));
         Ok(headers)
     }
 
@@ -302,11 +318,7 @@ impl EvidenceStore for FileRunStore {
         result: &NodeResult,
         evidence: AttemptEvidence,
     ) -> ApplicationResult<()> {
-        let key = AttemptKey::new(
-            result.node_id,
-            result.candidate_id.clone(),
-            result.attempt,
-        );
+        let key = AttemptKey::new(result.node_id, result.candidate_id.clone(), result.attempt);
         let destination = self.attempt_directory(run_id, &key);
         if destination.exists() {
             return Err(ApplicationError::Storage(format!(
@@ -472,7 +484,11 @@ impl CandidateEvidenceStore for FileRunStore {
         Ok(ContentDigest::of_bytes(patch))
     }
 
-    async fn read_diff(&self, run_id: RunId, candidate: &CandidateId) -> ApplicationResult<Vec<u8>> {
+    async fn read_diff(
+        &self,
+        run_id: RunId,
+        candidate: &CandidateId,
+    ) -> ApplicationResult<Vec<u8>> {
         let path = self
             .layout
             .candidate_directory(run_id, candidate)
@@ -492,7 +508,10 @@ impl CandidateEvidenceStore for FileRunStore {
         evidence: &TestEvidence,
     ) -> ApplicationResult<()> {
         let root = self.evidence_root(run_id, candidate).join("reports");
-        write_atomic_json(&root.join(format!("tests-attempt-{attempt}.json")), evidence)?;
+        write_atomic_json(
+            &root.join(format!("tests-attempt-{attempt}.json")),
+            evidence,
+        )?;
         write_atomic_json(&root.join("tests-latest.json"), evidence)
     }
 

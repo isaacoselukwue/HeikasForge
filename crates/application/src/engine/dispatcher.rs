@@ -17,8 +17,8 @@ use crate::configuration::EffectiveConfiguration;
 use crate::engine::context::{NodeContext, NodeOutput, RunContext};
 use crate::engine::recovery;
 use crate::engine::scheduler::{
-    active_candidates, candidate_status_for_node, next_candidate_step, next_run_step, run_status_for_node,
-    CandidateStep, RunStep,
+    active_candidates, candidate_status_for_node, next_candidate_step, next_run_step,
+    run_status_for_node, CandidateStep, RunStep,
 };
 use crate::engine::services::EngineServices;
 use crate::error::{ApplicationError, ApplicationResult};
@@ -102,7 +102,8 @@ impl Dispatcher {
                     return Ok(DispatchOutcome::Blocked(reason));
                 }
                 RunStep::AwaitPlanApproval => {
-                    self.ensure_run_status(RunStatus::AwaitingPlanApproval, None).await?;
+                    self.ensure_run_status(RunStatus::AwaitingPlanApproval, None)
+                        .await?;
                     return Ok(DispatchOutcome::Paused(RunStatus::AwaitingPlanApproval));
                 }
                 RunStep::AwaitCommitApproval => {
@@ -144,8 +145,11 @@ impl Dispatcher {
                 .await?;
             }
         }
-        self.ensure_run_status(RunStatus::Cancelled, Some("the run was cancelled".to_string()))
-            .await?;
+        self.ensure_run_status(
+            RunStatus::Cancelled,
+            Some("the run was cancelled".to_string()),
+        )
+        .await?;
         Ok(())
     }
 
@@ -155,11 +159,10 @@ impl Dispatcher {
         if candidates.is_empty() {
             return Ok(());
         }
-        let parallelism = self
-            .context
-            .configuration
-            .budgets
-            .effective_parallelism(self.context.services.host.facts().await?.logical_processors);
+        let parallelism =
+            self.context.configuration.budgets.effective_parallelism(
+                self.context.services.host.facts().await?.logical_processors,
+            );
         let permits = Arc::new(Semaphore::new(usize::from(parallelism.max(1))));
         let mut tasks = Vec::new();
         for candidate in candidates {
@@ -194,7 +197,7 @@ impl Dispatcher {
             }
         }
         match first_error {
-            Some(error) if matches!(error, ApplicationError::Cancelled) => Ok(()),
+            Some(ApplicationError::Cancelled) => Ok(()),
             Some(error) => Err(error),
             None => Ok(()),
         }
@@ -289,7 +292,9 @@ impl Dispatcher {
                         timeout.as_secs()
                     ),
                 )
-                .with_remedy("Increase the node timeout in the configuration or reduce the task scope."),
+                .with_remedy(
+                    "Increase the node timeout in the configuration or reduce the task scope.",
+                ),
                 None,
             ),
         };
@@ -311,7 +316,9 @@ impl Dispatcher {
 
         if output.status == NodeStatus::Failed {
             if let Some(failure) = output.failure.clone() {
-                let decision = self.decide_retry(node, candidate.as_ref(), attempt, &failure).await;
+                let decision = self
+                    .decide_retry(node, candidate.as_ref(), attempt, &failure)
+                    .await;
                 output = self
                     .apply_retry_decision(node, candidate.as_ref(), decision, output)
                     .await?;
@@ -337,10 +344,13 @@ impl Dispatcher {
             NodeStatus::Succeeded => builder.succeeded(finished_at, output.next),
             NodeStatus::Failed => builder.failed(
                 finished_at,
-                output
-                    .failure
-                    .clone()
-                    .unwrap_or_else(|| NodeFailure::new(FailureClass::InternalInvariant, "missing_failure", "a failed node produced no failure record")),
+                output.failure.clone().unwrap_or_else(|| {
+                    NodeFailure::new(
+                        FailureClass::InternalInvariant,
+                        "missing_failure",
+                        "a failed node produced no failure record",
+                    )
+                }),
                 output.next,
             ),
             NodeStatus::Paused => builder.paused(finished_at),
@@ -357,7 +367,8 @@ impl Dispatcher {
             .commit_attempt(run_id, &result, evidence)
             .await?;
 
-        let result_digest = heikas_domain::identity::ContentDigest::of_bytes(&serde_json::to_vec(&result)?);
+        let result_digest =
+            heikas_domain::identity::ContentDigest::of_bytes(&serde_json::to_vec(&result)?);
         let duration = result.duration_ms;
         let terminal = match output.status {
             NodeStatus::Succeeded => EventPayload::NodeSucceeded {
@@ -373,10 +384,13 @@ impl Dispatcher {
                 candidate_id: candidate.clone(),
                 attempt,
                 duration,
-                failure: result
-                    .failure
-                    .clone()
-                    .unwrap_or_else(|| NodeFailure::new(FailureClass::InternalInvariant, "missing_failure", "a failed node produced no failure record")),
+                failure: result.failure.clone().unwrap_or_else(|| {
+                    NodeFailure::new(
+                        FailureClass::InternalInvariant,
+                        "missing_failure",
+                        "a failed node produced no failure record",
+                    )
+                }),
                 next: output.next,
                 result_digest,
             },
@@ -399,7 +413,8 @@ impl Dispatcher {
             },
         };
         self.commit_event(terminal).await?;
-        self.apply_state_patch(node, candidate.as_ref(), &output).await?;
+        self.apply_state_patch(node, candidate.as_ref(), &output)
+            .await?;
         self.update_manifest(&key).await?;
 
         Ok(matches!(
@@ -487,28 +502,38 @@ impl Dispatcher {
     ) -> ApplicationResult<()> {
         if let Some(status) = output.state_patch.candidate_status {
             if let Some(candidate_id) = candidate {
-                self.set_candidate_status(candidate_id, status, None).await?;
+                self.set_candidate_status(candidate_id, status, None)
+                    .await?;
             }
         }
         if let Some(status) = output.state_patch.run_status {
             self.ensure_run_status(status, None).await?;
         }
-        if output.status == NodeStatus::Failed && output.next.is_none() && node.scope() == heikas_domain::graph::NodeScope::Run {
+        if output.status == NodeStatus::Failed
+            && output.next.is_none()
+            && node.scope() == heikas_domain::graph::NodeScope::Run
+        {
             let reason = output
                 .failure
                 .as_ref()
                 .map(|failure| failure.message.clone())
                 .unwrap_or_else(|| format!("node {} failed", node.as_str()));
-            self.ensure_run_status(RunStatus::Failed, Some(reason)).await?;
+            self.ensure_run_status(RunStatus::Failed, Some(reason))
+                .await?;
         }
-        if output.status == NodeStatus::Paused && node.scope() == heikas_domain::graph::NodeScope::Run {
-            self.ensure_run_status(RunStatus::RecoveryRequired, Some(
-                output
-                    .warnings
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "the run requires user action".to_string()),
-            ))
+        if output.status == NodeStatus::Paused
+            && node.scope() == heikas_domain::graph::NodeScope::Run
+        {
+            self.ensure_run_status(
+                RunStatus::RecoveryRequired,
+                Some(
+                    output
+                        .warnings
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| "the run requires user action".to_string()),
+                ),
+            )
             .await?;
         }
         Ok(())

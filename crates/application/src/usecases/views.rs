@@ -109,7 +109,9 @@ pub fn graph_view(projection: &RunProjection) -> GraphView {
             },
             NodeAttemptStatus::Failed => GraphNodeState::Failed,
             NodeAttemptStatus::Paused => GraphNodeState::Paused,
-            NodeAttemptStatus::Cancelled | NodeAttemptStatus::Interrupted => GraphNodeState::Skipped,
+            NodeAttemptStatus::Cancelled | NodeAttemptStatus::Interrupted => {
+                GraphNodeState::Skipped
+            }
         };
     }
 
@@ -130,10 +132,11 @@ pub fn graph_view(projection: &RunProjection) -> GraphView {
     let nodes = NodeId::ALL
         .into_iter()
         .map(|node| {
-            let (state, attempts, duration) = states
-                .get(&node)
-                .copied()
-                .unwrap_or((GraphNodeState::Pending, 0, 0));
+            let (state, attempts, duration) =
+                states
+                    .get(&node)
+                    .copied()
+                    .unwrap_or((GraphNodeState::Pending, 0, 0));
             GraphNodeView {
                 id: node.as_str().to_string(),
                 label: node.label().to_string(),

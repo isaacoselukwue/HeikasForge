@@ -1,0 +1,629 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EffectiveConfiguration",
+  "type": "object",
+  "required": [
+    "agent",
+    "budgets",
+    "commands",
+    "commit_policy",
+    "demonstration_mode",
+    "environment_allowlist",
+    "git",
+    "path_policy",
+    "quality",
+    "redaction",
+    "repository_path",
+    "retry",
+    "schema_version",
+    "timeouts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "repository_path": {
+      "type": "string"
+    },
+    "budgets": {
+      "$ref": "#/definitions/RunBudgets"
+    },
+    "commit_policy": {
+      "$ref": "#/definitions/CommitPolicy"
+    },
+    "agent": {
+      "$ref": "#/definitions/AgentConfiguration"
+    },
+    "quality": {
+      "$ref": "#/definitions/QualityConfiguration"
+    },
+    "git": {
+      "$ref": "#/definitions/GitConfiguration"
+    },
+    "commands": {
+      "$ref": "#/definitions/CommandCatalogue"
+    },
+    "path_policy": {
+      "$ref": "#/definitions/PathPolicy"
+    },
+    "redaction": {
+      "$ref": "#/definitions/RedactionConfiguration"
+    },
+    "retry": {
+      "$ref": "#/definitions/RetryPolicy"
+    },
+    "timeouts": {
+      "$ref": "#/definitions/NodeTimeouts"
+    },
+    "environment_allowlist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "demonstration_mode": {
+      "type": "boolean"
+    }
+  },
+  "definitions": {
+    "RunBudgets": {
+      "type": "object",
+      "required": [
+        "candidates",
+        "max_agent_turns",
+        "max_output_bytes_per_stream",
+        "max_parallel_candidates",
+        "max_repairs_per_candidate",
+        "max_total_artifact_bytes",
+        "wall_clock_seconds"
+      ],
+      "properties": {
+        "candidates": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "max_parallel_candidates": {
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "max_repairs_per_candidate": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "wall_clock_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "max_agent_turns": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "max_output_bytes_per_stream": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "max_total_artifact_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "CommitPolicy": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "automatic",
+        "none"
+      ]
+    },
+    "AgentConfiguration": {
+      "type": "object",
+      "required": [
+        "driver",
+        "extra_arguments",
+        "max_turns",
+        "network",
+        "timeout"
+      ],
+      "properties": {
+        "driver": {
+          "$ref": "#/definitions/AgentDriverKind"
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "endpoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "api_key_environment_variable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "executable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extra_arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_turns": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "timeout": {
+          "$ref": "#/definitions/TimeoutSeconds"
+        },
+        "network": {
+          "$ref": "#/definitions/NetworkPolicy"
+        },
+        "fixture_script": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "AgentDriverKind": {
+      "type": "string",
+      "enum": [
+        "local",
+        "fake",
+        "claude_code",
+        "codex_cli",
+        "open_code",
+        "generic_process"
+      ]
+    },
+    "TimeoutSeconds": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "NetworkPolicy": {
+      "type": "string",
+      "enum": [
+        "disabled",
+        "loopback-only",
+        "approved-endpoints"
+      ]
+    },
+    "QualityConfiguration": {
+      "type": "object",
+      "required": [
+        "ai_review",
+        "profile",
+        "protect_existing_tests",
+        "sonar_mcp",
+        "sonar_scanner"
+      ],
+      "properties": {
+        "profile": {
+          "$ref": "#/definitions/QualityProfile"
+        },
+        "minimum_line_coverage": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "protect_existing_tests": {
+          "type": "boolean"
+        },
+        "sonar_scanner": {
+          "$ref": "#/definitions/SonarScannerConfiguration"
+        },
+        "sonar_mcp": {
+          "$ref": "#/definitions/SonarMcpConfiguration"
+        },
+        "ai_review": {
+          "$ref": "#/definitions/AiReviewConfiguration"
+        }
+      }
+    },
+    "QualityProfile": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "strict"
+      ]
+    },
+    "SonarScannerConfiguration": {
+      "type": "object",
+      "required": [
+        "arguments",
+        "enabled",
+        "host_url",
+        "program",
+        "timeout",
+        "wait_for_quality_gate"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "program": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "host_url": {
+          "type": "string"
+        },
+        "project_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "token_environment_variable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "wait_for_quality_gate": {
+          "type": "boolean"
+        },
+        "timeout": {
+          "$ref": "#/definitions/TimeoutSeconds"
+        }
+      }
+    },
+    "SonarMcpConfiguration": {
+      "type": "object",
+      "required": [
+        "arguments",
+        "enabled",
+        "program",
+        "timeout"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "program": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "token_environment_variable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout": {
+          "$ref": "#/definitions/TimeoutSeconds"
+        }
+      }
+    },
+    "AiReviewConfiguration": {
+      "type": "object",
+      "required": [
+        "advisory_only",
+        "enabled",
+        "gate_rules"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "advisory_only": {
+          "type": "boolean"
+        },
+        "gate_rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "GitConfiguration": {
+      "type": "object",
+      "required": [
+        "author_name",
+        "branch_prefix",
+        "include_dirty",
+        "require_clean_repository"
+      ],
+      "properties": {
+        "branch_prefix": {
+          "type": "string"
+        },
+        "author_name": {
+          "type": "string"
+        },
+        "include_dirty": {
+          "type": "boolean"
+        },
+        "require_clean_repository": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CommandCatalogue": {
+      "type": "object",
+      "required": [
+        "commands"
+      ],
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CommandSpecification"
+          }
+        }
+      }
+    },
+    "CommandSpecification": {
+      "type": "object",
+      "required": [
+        "args",
+        "environment",
+        "id",
+        "kind",
+        "program",
+        "report_format",
+        "required",
+        "success_exit_codes",
+        "timeout"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/CommandId"
+        },
+        "kind": {
+          "$ref": "#/definitions/CommandKind"
+        },
+        "program": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "working_subdirectory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout": {
+          "$ref": "#/definitions/TimeoutSeconds"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "report_format": {
+          "$ref": "#/definitions/ReportFormat"
+        },
+        "report_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "environment": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          }
+        },
+        "success_exit_codes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "CommandId": {
+      "type": "string"
+    },
+    "CommandKind": {
+      "type": "string",
+      "enum": [
+        "format",
+        "lint",
+        "test",
+        "coverage",
+        "audit",
+        "secret_scan",
+        "static_analysis",
+        "policy",
+        "build"
+      ]
+    },
+    "ReportFormat": {
+      "type": "string",
+      "enum": [
+        "none",
+        "j_unit_xml",
+        "lcov",
+        "sarif",
+        "cargo_test_json",
+        "text"
+      ]
+    },
+    "PathPolicy": {
+      "type": "object",
+      "required": [
+        "approved_protected_paths",
+        "maximum_read_bytes",
+        "maximum_write_bytes",
+        "protected_patterns",
+        "sensitive_patterns"
+      ],
+      "properties": {
+        "protected_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sensitive_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approved_protected_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maximum_read_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "maximum_write_bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "RedactionConfiguration": {
+      "type": "object",
+      "required": [
+        "additional_patterns",
+        "redact_home_prefix",
+        "secret_environment_variables"
+      ],
+      "properties": {
+        "secret_environment_variables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additional_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "redact_home_prefix": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RetryPolicy": {
+      "type": "object",
+      "required": [
+        "initial_delay_ms",
+        "maximum_attempts",
+        "maximum_delay_ms",
+        "multiplier"
+      ],
+      "properties": {
+        "maximum_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "initial_delay_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "multiplier": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "maximum_delay_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "NodeTimeouts": {
+      "type": "object",
+      "required": [
+        "agent_seconds",
+        "command_seconds",
+        "git_seconds",
+        "review_seconds"
+      ],
+      "properties": {
+        "agent_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "command_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "review_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "git_seconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

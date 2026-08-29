@@ -286,9 +286,9 @@ impl ReviewProvider for LocalQualityProvider {
 pub fn coverage_issue(measured: Option<f64>, required: Option<f64>) -> Option<ReviewIssue> {
     let required = required?;
     let message = match measured {
-        Some(value) if value + f64::EPSILON < required => format!(
-            "line coverage {value:.2}% is below the required {required:.2}%"
-        ),
+        Some(value) if value + f64::EPSILON < required => {
+            format!("line coverage {value:.2}% is below the required {required:.2}%")
+        }
         Some(_) => return None,
         None => format!("line coverage was not measured but {required:.2}% is required"),
     };

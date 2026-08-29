@@ -15,8 +15,13 @@ use crate::model::run_summary::RunHeader;
 
 #[async_trait]
 pub trait EventStore: Send + Sync {
-    async fn append(&self, run_id: RunId, payload: EventPayload) -> ApplicationResult<DurableEvent>;
-    async fn read_after(&self, run_id: RunId, sequence: u64) -> ApplicationResult<Vec<DurableEvent>>;
+    async fn append(&self, run_id: RunId, payload: EventPayload)
+        -> ApplicationResult<DurableEvent>;
+    async fn read_after(
+        &self,
+        run_id: RunId,
+        sequence: u64,
+    ) -> ApplicationResult<Vec<DurableEvent>>;
     async fn read_range(
         &self,
         run_id: RunId,
@@ -40,7 +45,11 @@ pub trait ProjectionStore: Send + Sync {
     async fn store(&self, projection: &RunProjection) -> ApplicationResult<()>;
     async fn store_manifest(&self, manifest: &RunManifest) -> ApplicationResult<()>;
     async fn load_manifest(&self, run_id: RunId) -> ApplicationResult<Option<RunManifest>>;
-    async fn store_metrics(&self, run_id: RunId, projection: &RunProjection) -> ApplicationResult<()>;
+    async fn store_metrics(
+        &self,
+        run_id: RunId,
+        projection: &RunProjection,
+    ) -> ApplicationResult<()>;
 }
 
 #[async_trait]
@@ -117,7 +126,8 @@ pub trait CandidateEvidenceStore: Send + Sync {
         candidate: &CandidateId,
         patch: &[u8],
     ) -> ApplicationResult<ContentDigest>;
-    async fn read_diff(&self, run_id: RunId, candidate: &CandidateId) -> ApplicationResult<Vec<u8>>;
+    async fn read_diff(&self, run_id: RunId, candidate: &CandidateId)
+        -> ApplicationResult<Vec<u8>>;
     async fn write_test_evidence(
         &self,
         run_id: RunId,
@@ -143,7 +153,11 @@ pub trait CandidateEvidenceStore: Send + Sync {
         candidate: Option<&CandidateId>,
     ) -> ApplicationResult<Option<AggregatedReview>>;
     async fn write_ranking(&self, run_id: RunId, ranking: &Ranking) -> ApplicationResult<()>;
-    async fn write_integration_diff(&self, run_id: RunId, patch: &[u8]) -> ApplicationResult<ContentDigest>;
+    async fn write_integration_diff(
+        &self,
+        run_id: RunId,
+        patch: &[u8],
+    ) -> ApplicationResult<ContentDigest>;
     async fn read_integration_diff(&self, run_id: RunId) -> ApplicationResult<Vec<u8>>;
 }
 
@@ -164,6 +178,11 @@ pub trait RunStore:
 }
 
 impl<T> RunStore for T where
-    T: EventStore + ProjectionStore + RunCatalogue + EvidenceStore + PlanStore + CandidateEvidenceStore
+    T: EventStore
+        + ProjectionStore
+        + RunCatalogue
+        + EvidenceStore
+        + PlanStore
+        + CandidateEvidenceStore
 {
 }

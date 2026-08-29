@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "composite": true,
+    "outDir": "./.tsbuild-node",
+    "tsBuildInfoFile": "./.tsbuild-node/node.tsbuildinfo",
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true
+  },
+  "include": ["vite.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.capture.config.ts", "tests"]
+}

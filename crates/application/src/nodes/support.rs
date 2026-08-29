@@ -37,7 +37,10 @@ pub async fn candidate_worktree(
     resolve_worktree(context, &relative).await
 }
 
-pub fn candidate_worktree_relative(run_id: heikas_domain::identity::RunId, candidate: &CandidateId) -> String {
+pub fn candidate_worktree_relative(
+    run_id: heikas_domain::identity::RunId,
+    candidate: &CandidateId,
+) -> String {
     format!("worktrees/{run_id}/{candidate}")
 }
 
@@ -50,25 +53,26 @@ pub async fn integration_worktree(context: &NodeContext<'_>) -> ApplicationResul
 }
 
 pub fn baseline(context: &NodeContext<'_>) -> ApplicationResult<CommitHash> {
-    context
-        .projection
-        .baseline_commit
-        .clone()
-        .ok_or_else(|| ApplicationError::Internal("the run has no resolved baseline commit".to_string()))
+    context.projection.baseline_commit.clone().ok_or_else(|| {
+        ApplicationError::Internal("the run has no resolved baseline commit".to_string())
+    })
 }
 
-pub async fn approved_plan(context: &NodeContext<'_>) -> ApplicationResult<(String, ContentDigest)> {
-    let current = context
-        .projection
-        .plan
-        .current()
-        .ok_or_else(|| ApplicationError::ApprovalRequired("no plan version exists".to_string()))?;
+pub async fn approved_plan(
+    context: &NodeContext<'_>,
+) -> ApplicationResult<(String, ContentDigest)> {
+    let current =
+        context.projection.plan.current().ok_or_else(|| {
+            ApplicationError::ApprovalRequired("no plan version exists".to_string())
+        })?;
     let hash = context
         .projection
         .plan
         .approved_hash()
         .ok_or_else(|| {
-            ApplicationError::ApprovalRequired("the current plan version is not approved".to_string())
+            ApplicationError::ApprovalRequired(
+                "the current plan version is not approved".to_string(),
+            )
         })?
         .clone();
     let markdown = context

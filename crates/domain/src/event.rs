@@ -7,8 +7,8 @@ use crate::error::DomainError;
 use crate::failure::NodeFailure;
 use crate::graph::NodeId;
 use crate::identity::{
-    ApprovalId, AttemptNumber, BranchName, CandidateId, CandidateOrdinal, CommitHash, ContentDigest,
-    EventId, RunId,
+    ApprovalId, AttemptNumber, BranchName, CandidateId, CandidateOrdinal, CommitHash,
+    ContentDigest, EventId, RunId,
 };
 use crate::plan::ApprovalDecision;
 use crate::run::{CandidateStrategy, RunStatus};
@@ -288,7 +288,9 @@ impl EventPayload {
             | EventPayload::NodeRetryScheduled { candidate_id, .. }
             | EventPayload::TestEvidenceRecorded { candidate_id, .. }
             | EventPayload::ReviewEvidenceRecorded { candidate_id, .. }
-            | EventPayload::ProcessSupervisionRecorded { candidate_id, .. } => candidate_id.as_ref(),
+            | EventPayload::ProcessSupervisionRecorded { candidate_id, .. } => {
+                candidate_id.as_ref()
+            }
             EventPayload::CandidateRegistered { candidate_id, .. }
             | EventPayload::CandidateStatusChanged { candidate_id, .. }
             | EventPayload::CandidateDiffRecorded { candidate_id, .. }
@@ -342,64 +344,120 @@ impl EventPayload {
 
     pub fn human_summary(&self) -> String {
         match self {
-            EventPayload::RunCreated { task_title, .. } => format!("Run created for `{task_title}`"),
+            EventPayload::RunCreated { task_title, .. } => {
+                format!("Run created for `{task_title}`")
+            }
             EventPayload::RunStatusChanged { from, to, .. } => {
                 format!("Run status moved from {} to {}", from.label(), to.label())
             }
-            EventPayload::BaselineResolved { baseline_commit, .. } => {
+            EventPayload::BaselineResolved {
+                baseline_commit, ..
+            } => {
                 format!("Baseline resolved at {}", baseline_commit.short())
             }
             EventPayload::ConfigurationSnapshotted { command_ids, .. } => {
-                format!("Configuration snapshotted with {} commands", command_ids.len())
+                format!(
+                    "Configuration snapshotted with {} commands",
+                    command_ids.len()
+                )
             }
-            EventPayload::NodeStarted { node_id, attempt, .. } => {
+            EventPayload::NodeStarted {
+                node_id, attempt, ..
+            } => {
                 format!("{} started, attempt {attempt}", node_id.label())
             }
-            EventPayload::NodeSucceeded { node_id, duration, .. } => {
+            EventPayload::NodeSucceeded {
+                node_id, duration, ..
+            } => {
                 format!("{} succeeded in {}", node_id.label(), duration.human())
             }
-            EventPayload::NodeFailed { node_id, failure, .. } => {
+            EventPayload::NodeFailed {
+                node_id, failure, ..
+            } => {
                 format!("{} failed: {}", node_id.label(), failure.message)
             }
-            EventPayload::NodePaused { node_id, reason, .. } => {
+            EventPayload::NodePaused {
+                node_id, reason, ..
+            } => {
                 format!("{} paused: {reason}", node_id.label())
             }
             EventPayload::NodeCancelled { node_id, .. } => format!("{} cancelled", node_id.label()),
             EventPayload::NodeInterrupted { node_id, .. } => {
                 format!("{} was interrupted and will be recovered", node_id.label())
             }
-            EventPayload::NodeRetryScheduled { node_id, delay, reason, .. } => format!(
+            EventPayload::NodeRetryScheduled {
+                node_id,
+                delay,
+                reason,
+                ..
+            } => format!(
                 "{} retry scheduled in {} because {reason}",
                 node_id.label(),
                 delay.human()
             ),
-            EventPayload::PlanVersionWritten { version, .. } => format!("Plan version {version} written"),
-            EventPayload::PlanDecisionRecorded { decision, plan_version, .. } => {
-                format!("Plan version {plan_version} {}", decision.as_str().replace('_', " "))
+            EventPayload::PlanVersionWritten { version, .. } => {
+                format!("Plan version {version} written")
+            }
+            EventPayload::PlanDecisionRecorded {
+                decision,
+                plan_version,
+                ..
+            } => {
+                format!(
+                    "Plan version {plan_version} {}",
+                    decision.as_str().replace('_', " ")
+                )
             }
             EventPayload::PlanApprovalInvalidated { .. } => {
                 "Plan approval invalidated by a later edit".to_string()
             }
-            EventPayload::CandidateRegistered { candidate_id, strategy, .. } => {
-                format!("Candidate {candidate_id} registered with the {} strategy", strategy.label())
+            EventPayload::CandidateRegistered {
+                candidate_id,
+                strategy,
+                ..
+            } => {
+                format!(
+                    "Candidate {candidate_id} registered with the {} strategy",
+                    strategy.label()
+                )
             }
-            EventPayload::CandidateStatusChanged { candidate_id, to, .. } => {
+            EventPayload::CandidateStatusChanged {
+                candidate_id, to, ..
+            } => {
                 format!("Candidate {candidate_id} is now {}", to.label())
             }
-            EventPayload::CandidateDiffRecorded { candidate_id, changed_files, changed_lines, .. } => {
+            EventPayload::CandidateDiffRecorded {
+                candidate_id,
+                changed_files,
+                changed_lines,
+                ..
+            } => {
                 format!("Candidate {candidate_id} changed {changed_lines} lines across {changed_files} files")
             }
-            EventPayload::CandidateRepairStarted { candidate_id, repairs_used, repair_budget, .. } => {
+            EventPayload::CandidateRepairStarted {
+                candidate_id,
+                repairs_used,
+                repair_budget,
+                ..
+            } => {
                 format!("Candidate {candidate_id} repair {repairs_used} of {repair_budget} started")
             }
-            EventPayload::TestEvidenceRecorded { passed, failed_commands, .. } => {
+            EventPayload::TestEvidenceRecorded {
+                passed,
+                failed_commands,
+                ..
+            } => {
                 if *passed {
                     "All required test commands passed".to_string()
                 } else {
                     format!("Test commands failed: {}", failed_commands.join(", "))
                 }
             }
-            EventPayload::ReviewEvidenceRecorded { passed, failed_providers, .. } => {
+            EventPayload::ReviewEvidenceRecorded {
+                passed,
+                failed_providers,
+                ..
+            } => {
                 if *passed {
                     "All required review providers passed".to_string()
                 } else {
@@ -409,7 +467,10 @@ impl EventPayload {
             EventPayload::CandidateScored { candidate_id, .. } => {
                 format!("Candidate {candidate_id} scored")
             }
-            EventPayload::CandidateExcluded { candidate_id, reasons } => format!(
+            EventPayload::CandidateExcluded {
+                candidate_id,
+                reasons,
+            } => format!(
                 "Candidate {candidate_id} excluded: {}",
                 reasons
                     .iter()
@@ -418,12 +479,19 @@ impl EventPayload {
                     .join("; ")
             ),
             EventPayload::RankingComputed { ranking } => {
-                format!("Ranking computed across {} candidates", ranking.entries.len())
+                format!(
+                    "Ranking computed across {} candidates",
+                    ranking.entries.len()
+                )
             }
             EventPayload::WinnerSelected { candidate_id, rank } => {
                 format!("Candidate {candidate_id} selected at rank {rank}")
             }
-            EventPayload::IntegrationAttempted { candidate_id, applied, detail } => {
+            EventPayload::IntegrationAttempted {
+                candidate_id,
+                applied,
+                detail,
+            } => {
                 if *applied {
                     format!("Candidate {candidate_id} applied to the integration worktree")
                 } else {
@@ -433,38 +501,58 @@ impl EventPayload {
                     )
                 }
             }
-            EventPayload::CandidatePromotionRequested { next_candidate_id, reason, .. } => {
-                match next_candidate_id {
-                    Some(next) => format!("Promoting candidate {next} because {reason}"),
-                    None => format!("No candidate remains to promote because {reason}"),
-                }
-            }
+            EventPayload::CandidatePromotionRequested {
+                next_candidate_id,
+                reason,
+                ..
+            } => match next_candidate_id {
+                Some(next) => format!("Promoting candidate {next} because {reason}"),
+                None => format!("No candidate remains to promote because {reason}"),
+            },
             EventPayload::CommitApprovalRecorded { local_user, .. } => {
                 format!("Commit approved by {local_user}")
             }
-            EventPayload::CommitCreated { branch, commit_hash, .. } => {
+            EventPayload::CommitCreated {
+                branch,
+                commit_hash,
+                ..
+            } => {
                 format!("Commit {} created on {branch}", commit_hash.short())
             }
             EventPayload::CancellationRequested { requested_by, .. } => {
                 format!("Cancellation requested by {requested_by}")
             }
-            EventPayload::RecoveryStarted { interrupted_attempts, .. } => {
+            EventPayload::RecoveryStarted {
+                interrupted_attempts,
+                ..
+            } => {
                 format!("Recovery started with {interrupted_attempts} interrupted attempts")
             }
-            EventPayload::RecoveryCompleted { replayed_events, .. } => {
+            EventPayload::RecoveryCompleted {
+                replayed_events, ..
+            } => {
                 format!("Recovery replayed {replayed_events} events")
             }
-            EventPayload::ProcessSupervisionRecorded { command_id, timed_out, .. } => {
+            EventPayload::ProcessSupervisionRecorded {
+                command_id,
+                timed_out,
+                ..
+            } => {
                 if *timed_out {
                     format!("Command `{command_id}` exceeded its timeout and its process tree was terminated")
                 } else {
                     format!("Command `{command_id}` process tree completed")
                 }
             }
-            EventPayload::ArtifactStored { label, byte_length, .. } => {
+            EventPayload::ArtifactStored {
+                label, byte_length, ..
+            } => {
                 format!("Artefact `{label}` stored with {byte_length} bytes")
             }
-            EventPayload::RunExported { archive_relative_path, .. } => {
+            EventPayload::RunExported {
+                archive_relative_path,
+                ..
+            } => {
                 format!("Run exported to {archive_relative_path}")
             }
             EventPayload::DiagnosticRecorded { level, message, .. } => {
@@ -542,7 +630,11 @@ impl DurableEvent {
         ContentDigest::of_str(&material).as_str().to_string()
     }
 
-    pub fn verify(&self, expected_sequence: u64, expected_previous_hash: &str) -> Result<(), DomainError> {
+    pub fn verify(
+        &self,
+        expected_sequence: u64,
+        expected_previous_hash: &str,
+    ) -> Result<(), DomainError> {
         if self.schema_version != EVENT_SCHEMA_VERSION {
             return Err(DomainError::InvariantViolated(format!(
                 "event schema version {} is not supported",

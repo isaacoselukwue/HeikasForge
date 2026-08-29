@@ -125,6 +125,10 @@ impl NodeFailure {
 
 impl fmt::Display for NodeFailure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "[{}] {}: {}", self.class, self.code, self.message)
+        write!(
+            formatter,
+            "[{}] {}: {}",
+            self.class, self.code, self.message
+        )
     }
 }

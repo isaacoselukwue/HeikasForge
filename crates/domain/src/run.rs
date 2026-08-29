@@ -5,7 +5,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::DomainError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     Created,
@@ -86,7 +98,9 @@ impl RunStatus {
     pub fn is_paused(&self) -> bool {
         matches!(
             self,
-            RunStatus::AwaitingPlanApproval | RunStatus::AwaitingCommitApproval | RunStatus::RecoveryRequired
+            RunStatus::AwaitingPlanApproval
+                | RunStatus::AwaitingCommitApproval
+                | RunStatus::RecoveryRequired
         )
     }
 
@@ -159,7 +173,10 @@ impl RunStatus {
                 RunStatus::Cancelled,
                 RunStatus::Failed,
             ],
-            RunStatus::Succeeded | RunStatus::Exhausted | RunStatus::Failed | RunStatus::Cancelled => &[],
+            RunStatus::Succeeded
+            | RunStatus::Exhausted
+            | RunStatus::Failed
+            | RunStatus::Cancelled => &[],
         }
     }
 

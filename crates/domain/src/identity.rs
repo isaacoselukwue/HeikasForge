@@ -8,7 +8,9 @@ use crate::error::DomainError;
 
 macro_rules! sortable_uuid_id {
     ($name:ident, $label:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+        )]
         #[serde(transparent)]
         pub struct $name(Uuid);
 
@@ -36,10 +38,11 @@ macro_rules! sortable_uuid_id {
             type Err = DomainError;
 
             fn from_str(value: &str) -> Result<Self, Self::Err> {
-                let parsed = Uuid::parse_str(value).map_err(|_| DomainError::InvalidIdentifier {
-                    kind: $label,
-                    value: value.to_string(),
-                })?;
+                let parsed =
+                    Uuid::parse_str(value).map_err(|_| DomainError::InvalidIdentifier {
+                        kind: $label,
+                        value: value.to_string(),
+                    })?;
                 Ok(Self(parsed))
             }
         }
@@ -49,8 +52,11 @@ macro_rules! sortable_uuid_id {
                 $label.to_string()
             }
 
-            fn json_schema(generator: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-                let mut schema = <String as schemars::JsonSchema>::json_schema(generator).into_object();
+            fn json_schema(
+                generator: &mut schemars::gen::SchemaGenerator,
+            ) -> schemars::schema::Schema {
+                let mut schema =
+                    <String as schemars::JsonSchema>::json_schema(generator).into_object();
                 schema.format = Some("uuid".to_string());
                 schema.into()
             }
@@ -200,7 +206,11 @@ pub struct AttemptId {
 }
 
 impl AttemptId {
-    pub fn new(node: crate::graph::NodeId, candidate: Option<CandidateId>, attempt: AttemptNumber) -> Self {
+    pub fn new(
+        node: crate::graph::NodeId,
+        candidate: Option<CandidateId>,
+        attempt: AttemptNumber,
+    ) -> Self {
         Self {
             node,
             candidate,
@@ -250,7 +260,8 @@ impl FromStr for ContentDigest {
     type Err = DomainError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let valid = value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit());
+        let valid =
+            value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit());
         if !valid {
             return Err(DomainError::InvalidIdentifier {
                 kind: "ContentDigest",
@@ -298,7 +309,8 @@ impl FromStr for CommitHash {
     type Err = DomainError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let valid = (7..=64).contains(&value.len()) && value.chars().all(|character| character.is_ascii_hexdigit());
+        let valid = (7..=64).contains(&value.len())
+            && value.chars().all(|character| character.is_ascii_hexdigit());
         if !valid {
             return Err(DomainError::InvalidIdentifier {
                 kind: "CommitHash",
@@ -344,8 +356,7 @@ impl FromStr for BranchName {
             .iter()
             .any(|sequence| value.contains(sequence));
         let has_forbidden_character = value.chars().any(|character| {
-            character.is_control()
-                || matches!(character, ' ' | '~' | '^' | ':' | '?' | '*' | '[')
+            character.is_control() || matches!(character, ' ' | '~' | '^' | ':' | '?' | '*' | '[')
         });
         let valid = !value.is_empty()
             && value.len() <= 200

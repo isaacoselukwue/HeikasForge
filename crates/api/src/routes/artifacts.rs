@@ -24,7 +24,9 @@ pub async fn candidate_diff(
 ) -> ApiResult<Response> {
     let run_id = parse_run_id(&run_id)?;
     let candidate = CandidateId::from_str(&candidate_id).map_err(|_| {
-        ApiError::bad_request(format!("`{candidate_id}` is not a valid candidate identifier"))
+        ApiError::bad_request(format!(
+            "`{candidate_id}` is not a valid candidate identifier"
+        ))
     })?;
     let bytes = state
         .runtime
@@ -50,7 +52,9 @@ pub async fn artifact(
 ) -> ApiResult<Response> {
     let run_id = parse_run_id(&run_id)?;
     let digest = ContentDigest::from_str(&artifact_id).map_err(|_| {
-        ApiError::bad_request(format!("`{artifact_id}` is not a valid artefact identifier"))
+        ApiError::bad_request(format!(
+            "`{artifact_id}` is not a valid artefact identifier"
+        ))
     })?;
     let bytes = match (range.offset, range.length) {
         (Some(offset), Some(length)) => {
@@ -88,9 +92,6 @@ fn text_response(bytes: Vec<u8>, media_type: &str) -> Response {
     if let Ok(value) = HeaderValue::from_str(media_type) {
         headers.insert(header::CONTENT_TYPE, value);
     }
-    headers.insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("no-store"),
-    );
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     (StatusCode::OK, headers, bytes).into_response()
 }

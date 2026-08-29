@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use heikas_domain::budget::{CandidateCount, QualityProfile, RunBudgets};
 use heikas_domain::clock::TimeoutSeconds;
-use heikas_domain::command::{CommandCatalogue, CommandKind, CommandSpecification, ReportFormat, MAXIMUM_COMMAND_TIMEOUT_SECONDS};
+use heikas_domain::command::{
+    CommandCatalogue, CommandKind, CommandSpecification, ReportFormat,
+    MAXIMUM_COMMAND_TIMEOUT_SECONDS,
+};
 use heikas_domain::identity::ContentDigest;
 use heikas_domain::path_policy::PathPolicy;
 use heikas_domain::retry::{NodeTimeouts, RetryPolicy};
@@ -314,7 +317,8 @@ impl EffectiveConfiguration {
         }
         if self.agent.driver.is_demonstration_only() && !self.demonstration_mode {
             return Err(ApplicationError::InvalidConfiguration(
-                "the deterministic demonstration agent may only run in demonstration mode".to_string(),
+                "the deterministic demonstration agent may only run in demonstration mode"
+                    .to_string(),
             ));
         }
         Ok(())

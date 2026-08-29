@@ -39,7 +39,9 @@ pub struct RunSummary {
     pub recovery_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, Default,
+)]
 pub struct CandidateProgress {
     pub total: u32,
     pub eligible: u32,
@@ -57,7 +59,9 @@ impl RunSummary {
         for candidate in &projection.candidates {
             match candidate.status {
                 CandidateStatus::Eligible => progress.eligible += 1,
-                CandidateStatus::Ineligible | CandidateStatus::Cancelled => progress.ineligible += 1,
+                CandidateStatus::Ineligible | CandidateStatus::Cancelled => {
+                    progress.ineligible += 1
+                }
                 CandidateStatus::Pending => progress.pending += 1,
                 _ => progress.active += 1,
             }

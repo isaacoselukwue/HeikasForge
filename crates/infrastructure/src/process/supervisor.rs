@@ -30,10 +30,13 @@ impl SupervisedProcessRunner {
 
     fn base_environment(&self) -> Vec<(String, String)> {
         let mut variables = Vec::new();
-        for name in essential_environment_variables()
-            .iter()
-            .chain(self.environment_allowlist.iter().map(|value| value.as_str()).collect::<Vec<_>>().iter())
-        {
+        for name in essential_environment_variables().iter().chain(
+            self.environment_allowlist
+                .iter()
+                .map(|value| value.as_str())
+                .collect::<Vec<_>>()
+                .iter(),
+        ) {
             if let Ok(value) = std::env::var(name) {
                 variables.push(((*name).to_string(), value));
             }
@@ -75,13 +78,9 @@ impl ProcessRunner for SupervisedProcessRunner {
             )));
         }
         let started = Instant::now();
-        let mut child = self
-            .build_command(&request)
-            .spawn()
-            .map_err(|error| ApplicationError::Process(format!(
-                "could not start `{}`: {error}",
-                request.program
-            )))?;
+        let mut child = self.build_command(&request).spawn().map_err(|error| {
+            ApplicationError::Process(format!("could not start `{}`: {error}", request.program))
+        })?;
         let process_id = child.id();
         let job = tree::register(&child);
 
@@ -180,7 +179,10 @@ impl ProcessRunner for SupervisedProcessRunner {
     }
 }
 
-async fn terminate(child: &mut Child, process_id: Option<u32>) -> ApplicationResult<std::process::ExitStatus> {
+async fn terminate(
+    child: &mut Child,
+    process_id: Option<u32>,
+) -> ApplicationResult<std::process::ExitStatus> {
     tree::request_graceful_stop(process_id);
     match tokio::time::timeout(GRACEFUL_TERMINATION_DELAY, child.wait()).await {
         Ok(Ok(status)) => Ok(status),
@@ -298,16 +300,7 @@ pub fn essential_environment_variables() -> Vec<&'static str> {
     #[cfg(not(windows))]
     {
         vec![
-            "PATH",
-            "HOME",
-            "LANG",
-            "LC_ALL",
-            "TMPDIR",
-            "SHELL",
-            "USER",
-            "LOGNAME",
-            "TERM",
-            "TZ",
+            "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "USER", "LOGNAME", "TERM", "TZ",
         ]
     }
 }

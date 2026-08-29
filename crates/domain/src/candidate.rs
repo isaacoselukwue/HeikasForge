@@ -9,7 +9,19 @@ use crate::identity::{CandidateId, CandidateOrdinal, CommitHash, ContentDigest};
 use crate::run::CandidateStrategy;
 use crate::score::{ExclusionReason, ScoreTuple};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CandidateStatus {
     Pending,

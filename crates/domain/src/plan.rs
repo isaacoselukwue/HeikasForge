@@ -101,11 +101,15 @@ impl PlanHistory {
     }
 
     pub fn next_version_number(&self) -> u32 {
-        self.current().map(|version| version.version + 1).unwrap_or(1)
+        self.current()
+            .map(|version| version.version + 1)
+            .unwrap_or(1)
     }
 
     pub fn version(&self, number: u32) -> Option<&PlanVersion> {
-        self.versions.iter().find(|version| version.version == number)
+        self.versions
+            .iter()
+            .find(|version| version.version == number)
     }
 
     pub fn approved_hash(&self) -> Option<&PlanHash> {
@@ -157,7 +161,11 @@ pub fn validate_plan_document(markdown: &str) -> PlanValidation {
 
     let expected_files = sections
         .iter()
-        .find(|section| section.title.eq_ignore_ascii_case("Files expected to change"))
+        .find(|section| {
+            section
+                .title
+                .eq_ignore_ascii_case("Files expected to change")
+        })
         .map(|section| extract_list_items(&section.body))
         .unwrap_or_default();
 

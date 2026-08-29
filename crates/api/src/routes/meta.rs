@@ -77,13 +77,23 @@ pub async fn create_session(
     let headers = response.headers_mut();
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&session_cookie)
-            .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "cookie", "the session cookie could not be encoded"))?,
+        HeaderValue::from_str(&session_cookie).map_err(|_| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "cookie",
+                "the session cookie could not be encoded",
+            )
+        })?,
     );
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&csrf_cookie)
-            .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "cookie", "the token cookie could not be encoded"))?,
+        HeaderValue::from_str(&csrf_cookie).map_err(|_| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "cookie",
+                "the token cookie could not be encoded",
+            )
+        })?,
     );
     Ok(response)
 }
@@ -157,9 +167,15 @@ pub struct AgentDriverDescription {
     pub demonstration_only: bool,
 }
 
-pub async fn configuration(State(state): State<ApiState>) -> ApiResult<Json<ConfigurationResponse>> {
+pub async fn configuration(
+    State(state): State<ApiState>,
+) -> ApiResult<Json<ConfigurationResponse>> {
     let facts = state.runtime.host.facts().await?;
-    let user_configuration = state.runtime.configuration.user_configuration_path().await?;
+    let user_configuration = state
+        .runtime
+        .configuration
+        .user_configuration_path()
+        .await?;
     let summaries = state.runtime.service.list_runs().await?;
     let mut recent_repositories: Vec<String> = Vec::new();
     for summary in summaries.iter().take(30) {
@@ -202,10 +218,6 @@ pub async fn doctor(
     Json(request): Json<DoctorRequest>,
 ) -> ApiResult<Json<DoctorReport>> {
     let path = request.repository_path.map(PathBuf::from);
-    let report = state
-        .runtime
-        .service
-        .diagnose(path.as_deref())
-        .await?;
+    let report = state.runtime.service.diagnose(path.as_deref()).await?;
     Ok(Json(report))
 }

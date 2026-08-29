@@ -41,7 +41,9 @@ impl SessionRejection {
             SessionRejection::Missing => "no valid session cookie was supplied",
             SessionRejection::Expired => "the session has expired, reload the interface",
             SessionRejection::CsrfMismatch => "the cross-site request forgery token did not match",
-            SessionRejection::RateLimited => "too many state-changing requests were made, slow down",
+            SessionRejection::RateLimited => {
+                "too many state-changing requests were made, slow down"
+            }
         }
     }
 }

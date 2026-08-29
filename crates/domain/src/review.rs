@@ -9,7 +9,19 @@ use crate::identity::ContentDigest;
 
 pub const REVIEW_REPORT_SCHEMA_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueSeverity {
     Info,
@@ -74,7 +86,19 @@ impl FromStr for IssueSeverity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueCategory {
     Security,
@@ -177,7 +201,10 @@ impl ReviewIssue {
         file: Option<&str>,
         message: &str,
     ) -> String {
-        let material = format!("{provider}\u{1f}{rule_id}\u{1f}{}\u{1f}{message}", file.unwrap_or(""));
+        let material = format!(
+            "{provider}\u{1f}{rule_id}\u{1f}{}\u{1f}{message}",
+            file.unwrap_or("")
+        );
         ContentDigest::of_str(&material).short().to_string()
     }
 }
@@ -321,7 +348,10 @@ impl AggregatedReview {
             .flat_map(|report| report.issues.iter())
             .filter(|issue| {
                 issue.severity == IssueSeverity::Blocker
-                    && matches!(issue.category, IssueCategory::Policy | IssueCategory::TestIntegrity)
+                    && matches!(
+                        issue.category,
+                        IssueCategory::Policy | IssueCategory::TestIntegrity
+                    )
             })
             .collect()
     }

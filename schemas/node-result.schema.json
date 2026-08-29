@@ -1,0 +1,787 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NodeResult",
+  "type": "object",
+  "required": [
+    "artifacts",
+    "attempt",
+    "duration_ms",
+    "finished_at",
+    "metrics",
+    "node_id",
+    "run_id",
+    "schema_version",
+    "started_at",
+    "state_patch",
+    "status",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "run_id": {
+      "$ref": "#/definitions/RunId"
+    },
+    "candidate_id": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CandidateId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "node_id": {
+      "$ref": "#/definitions/NodeId"
+    },
+    "attempt": {
+      "$ref": "#/definitions/AttemptNumber"
+    },
+    "status": {
+      "$ref": "#/definitions/NodeStatus"
+    },
+    "started_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "finished_at": {
+      "$ref": "#/definitions/Timestamp"
+    },
+    "duration_ms": {
+      "$ref": "#/definitions/DurationMs"
+    },
+    "next": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/NodeId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state_patch": {
+      "$ref": "#/definitions/StatePatch"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ArtifactReference"
+      }
+    },
+    "failure": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/NodeFailure"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metrics": true,
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "RunId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "CandidateId": {
+      "type": "string"
+    },
+    "NodeId": {
+      "type": "string",
+      "enum": [
+        "prepare",
+        "plan",
+        "approval",
+        "fan_out",
+        "implement_candidate",
+        "test_candidate",
+        "review_candidate",
+        "repair_candidate",
+        "join",
+        "integrate_winner",
+        "final_test",
+        "final_review",
+        "commit_approval",
+        "commit"
+      ]
+    },
+    "AttemptNumber": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "NodeStatus": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "failed",
+        "paused",
+        "cancelled",
+        "interrupted"
+      ]
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "DurationMs": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "StatePatch": {
+      "type": "object",
+      "properties": {
+        "run_status": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/RunStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidate_status": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CandidateStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plan_version": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "baseline_commit": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CommitHash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changed_lines": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "changed_files": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "diff_digest": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repairs_used": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "gate_duration_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "failure_fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exclusion_reasons": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/ExclusionReason"
+          }
+        },
+        "score": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ScoreTuple"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "winner": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CandidateId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "commit_hash": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CommitHash"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BranchName"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "promotable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "integration_attempted": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "RunStatus": {
+      "type": "string",
+      "enum": [
+        "created",
+        "validating",
+        "planning",
+        "awaiting_plan_approval",
+        "running_candidates",
+        "joining",
+        "integrating",
+        "awaiting_commit_approval",
+        "succeeded",
+        "exhausted",
+        "failed",
+        "cancelled",
+        "recovery_required"
+      ]
+    },
+    "CandidateStatus": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "preparing",
+        "implementing",
+        "testing",
+        "reviewing",
+        "repairing",
+        "eligible",
+        "ineligible",
+        "interrupted",
+        "cancelled"
+      ]
+    },
+    "CommitHash": {
+      "type": "string"
+    },
+    "ContentDigest": {
+      "type": "string"
+    },
+    "ExclusionReason": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "command_id",
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_test_failed"
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "command_id",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_test_missing"
+              ]
+            },
+            "command_id": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "provider",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_review_failed"
+              ]
+            },
+            "provider": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "required_review_missing"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason",
+            "rule_id"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "blocker_policy_finding"
+              ]
+            },
+            "rule_id": {
+              "type": "string"
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "empty_diff"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "diff_does_not_apply"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "measured",
+            "reason",
+            "required"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "coverage_below_threshold"
+              ]
+            },
+            "measured": {
+              "type": "number",
+              "format": "double"
+            },
+            "required": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "budget",
+            "reason",
+            "used"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "repair_budget_exhausted"
+              ]
+            },
+            "used": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "budget": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "time_budget_exceeded"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "cancelled"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "interrupted"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "enum": [
+                "integration_failed"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "ScoreTuple": {
+      "type": "object",
+      "required": [
+        "blocker_issues",
+        "candidate_id",
+        "changed_lines",
+        "coverage_rank",
+        "critical_issues",
+        "gate_duration_ms",
+        "high_issues",
+        "medium_issues",
+        "new_maintainability_weight",
+        "new_reliability_weight",
+        "new_security_weight",
+        "repair_attempts",
+        "test_integrity_penalty"
+      ],
+      "properties": {
+        "blocker_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "critical_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "high_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "medium_issues": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_security_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_reliability_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "new_maintainability_weight": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "coverage_rank": {
+          "$ref": "#/definitions/CoverageRank"
+        },
+        "test_integrity_penalty": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "changed_lines": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "repair_attempts": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "gate_duration_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "candidate_id": {
+          "$ref": "#/definitions/CandidateId"
+        }
+      }
+    },
+    "CoverageRank": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "measured"
+              ]
+            },
+            "value": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "missing"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "BranchName": {
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "type": "object",
+      "required": [
+        "byte_length",
+        "id",
+        "label",
+        "media_type",
+        "relative_path",
+        "truncated"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ContentDigest"
+        },
+        "label": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "byte_length": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NodeFailure": {
+      "type": "object",
+      "required": [
+        "class",
+        "code",
+        "message"
+      ],
+      "properties": {
+        "class": {
+          "$ref": "#/definitions/FailureClass"
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "remedy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fingerprint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "FailureClass": {
+      "type": "string",
+      "enum": [
+        "task_failure",
+        "transient_infrastructure",
+        "permanent_configuration",
+        "policy_violation",
+        "user_action_required",
+        "cancelled",
+        "internal_invariant"
+      ]
+    }
+  }
+}

@@ -103,7 +103,10 @@ impl RunLogReader for FileRunLog {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
             Err(error) => return Err(storage(&path, "read", error)),
         };
-        Ok(contents.lines().filter(|line| !line.trim().is_empty()).count() as u64)
+        Ok(contents
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .count() as u64)
     }
 }
 
@@ -115,8 +118,8 @@ pub enum TerminalFormat {
 }
 
 pub fn install_tracing(format: TerminalFormat, default_directive: &str) {
-    let filter = EnvFilter::try_from_env("HEIKAS_LOG")
-        .unwrap_or_else(|_| EnvFilter::new(default_directive));
+    let filter =
+        EnvFilter::try_from_env("HEIKAS_LOG").unwrap_or_else(|_| EnvFilter::new(default_directive));
     let registry = tracing_subscriber::registry().with(filter);
     match format {
         TerminalFormat::Compact => {
@@ -134,8 +137,7 @@ pub fn install_tracing(format: TerminalFormat, default_directive: &str) {
             let _ = registry.with(layer).try_init();
         }
         TerminalFormat::Silent => {
-            let layer = tracing_subscriber::fmt::layer()
-                .with_writer(std::io::sink);
+            let layer = tracing_subscriber::fmt::layer().with_writer(std::io::sink);
             let _ = registry.with(layer).try_init();
         }
     }

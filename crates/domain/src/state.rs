@@ -5,9 +5,7 @@ use crate::clock::{DurationMs, Timestamp};
 use crate::error::{DomainError, DomainResult};
 use crate::event::{DurableEvent, EventPayload, GENESIS_HASH};
 use crate::graph::NodeId;
-use crate::identity::{
-    AttemptNumber, BranchName, CandidateId, CommitHash, ContentDigest, RunId,
-};
+use crate::identity::{AttemptNumber, BranchName, CandidateId, CommitHash, ContentDigest, RunId};
 use crate::node::NodeStatus;
 use crate::plan::{ApprovalDecision, PlanApproval, PlanHistory, PlanVersion};
 use crate::run::{CommitPolicy, RunStatus};
@@ -197,7 +195,9 @@ impl RunProjection {
     }
 
     pub fn candidate_mut(&mut self, id: &CandidateId) -> Option<&mut CandidateRecord> {
-        self.candidates.iter_mut().find(|candidate| &candidate.id == id)
+        self.candidates
+            .iter_mut()
+            .find(|candidate| &candidate.id == id)
     }
 
     pub fn all_candidates_terminal(&self) -> bool {
@@ -216,17 +216,28 @@ impl RunProjection {
     }
 
     pub fn open_attempts(&self) -> Vec<&NodeAttemptRecord> {
-        self.attempts.iter().filter(|attempt| attempt.is_open()).collect()
+        self.attempts
+            .iter()
+            .filter(|attempt| attempt.is_open())
+            .collect()
     }
 
-    pub fn latest_attempt(&self, node: NodeId, candidate: Option<&CandidateId>) -> Option<&NodeAttemptRecord> {
+    pub fn latest_attempt(
+        &self,
+        node: NodeId,
+        candidate: Option<&CandidateId>,
+    ) -> Option<&NodeAttemptRecord> {
         self.attempts
             .iter()
             .filter(|record| record.node_id == node && record.candidate_id.as_ref() == candidate)
             .max_by_key(|record| record.attempt.get())
     }
 
-    pub fn next_attempt_number(&self, node: NodeId, candidate: Option<&CandidateId>) -> AttemptNumber {
+    pub fn next_attempt_number(
+        &self,
+        node: NodeId,
+        candidate: Option<&CandidateId>,
+    ) -> AttemptNumber {
         match self.latest_attempt(node, candidate) {
             Some(record) => record.attempt.next(),
             None => AttemptNumber::FIRST,
@@ -449,7 +460,12 @@ impl RunProjection {
                 revision_note,
                 byte_length,
             } => {
-                if self.plan.versions.iter().any(|entry| entry.version == *version) {
+                if self
+                    .plan
+                    .versions
+                    .iter()
+                    .any(|entry| entry.version == *version)
+                {
                     return Err(DomainError::InvariantViolated(format!(
                         "plan version {version} was already recorded"
                     )));
@@ -529,11 +545,11 @@ impl RunProjection {
                 ..
             } => {
                 let started = at;
-                let candidate = self
-                    .candidate_mut(candidate_id)
-                    .ok_or_else(|| DomainError::UnknownCandidate {
+                let candidate = self.candidate_mut(candidate_id).ok_or_else(|| {
+                    DomainError::UnknownCandidate {
                         candidate: candidate_id.to_string(),
-                    })?;
+                    }
+                })?;
                 if candidate.status != *from {
                     return Err(DomainError::IllegalCandidateTransition {
                         from: candidate.status,
@@ -554,11 +570,11 @@ impl RunProjection {
                 changed_files,
                 changed_lines,
             } => {
-                let candidate = self
-                    .candidate_mut(candidate_id)
-                    .ok_or_else(|| DomainError::UnknownCandidate {
+                let candidate = self.candidate_mut(candidate_id).ok_or_else(|| {
+                    DomainError::UnknownCandidate {
                         candidate: candidate_id.to_string(),
-                    })?;
+                    }
+                })?;
                 candidate.diff_digest = Some(diff_digest.clone());
                 candidate.changed_files = *changed_files;
                 candidate.changed_lines = *changed_lines;
@@ -574,11 +590,11 @@ impl RunProjection {
                 failure_fingerprint,
                 ..
             } => {
-                let candidate = self
-                    .candidate_mut(candidate_id)
-                    .ok_or_else(|| DomainError::UnknownCandidate {
+                let candidate = self.candidate_mut(candidate_id).ok_or_else(|| {
+                    DomainError::UnknownCandidate {
                         candidate: candidate_id.to_string(),
-                    })?;
+                    }
+                })?;
                 candidate.repairs_used = *repairs_used;
                 if let Some(fingerprint) = failure_fingerprint {
                     candidate.observe_failure_fingerprint(fingerprint.clone());
@@ -592,8 +608,10 @@ impl RunProjection {
                 duration,
                 ..
             } => {
-                self.metrics.test_duration_ms =
-                    self.metrics.test_duration_ms.saturating_add(duration.millis());
+                self.metrics.test_duration_ms = self
+                    .metrics
+                    .test_duration_ms
+                    .saturating_add(duration.millis());
                 if let Some(id) = candidate_id {
                     if let Some(candidate) = self.candidate_mut(id) {
                         candidate.gate_duration = candidate.gate_duration.saturating_add(*duration);
@@ -610,8 +628,10 @@ impl RunProjection {
                 duration,
                 ..
             } => {
-                self.metrics.review_duration_ms =
-                    self.metrics.review_duration_ms.saturating_add(duration.millis());
+                self.metrics.review_duration_ms = self
+                    .metrics
+                    .review_duration_ms
+                    .saturating_add(duration.millis());
                 if let Some(id) = candidate_id {
                     if let Some(candidate) = self.candidate_mut(id) {
                         candidate.gate_duration = candidate.gate_duration.saturating_add(*duration);
@@ -621,23 +641,26 @@ impl RunProjection {
                     self.integration.final_review_passed = Some(*passed);
                 }
             }
-            EventPayload::CandidateScored { candidate_id, score } => {
-                let candidate = self
-                    .candidate_mut(candidate_id)
-                    .ok_or_else(|| DomainError::UnknownCandidate {
+            EventPayload::CandidateScored {
+                candidate_id,
+                score,
+            } => {
+                let candidate = self.candidate_mut(candidate_id).ok_or_else(|| {
+                    DomainError::UnknownCandidate {
                         candidate: candidate_id.to_string(),
-                    })?;
+                    }
+                })?;
                 candidate.score = Some(score.clone());
             }
             EventPayload::CandidateExcluded {
                 candidate_id,
                 reasons,
             } => {
-                let candidate = self
-                    .candidate_mut(candidate_id)
-                    .ok_or_else(|| DomainError::UnknownCandidate {
+                let candidate = self.candidate_mut(candidate_id).ok_or_else(|| {
+                    DomainError::UnknownCandidate {
                         candidate: candidate_id.to_string(),
-                    })?;
+                    }
+                })?;
                 candidate.exclusion_reasons = reasons.clone();
                 candidate.promotable = false;
             }
@@ -658,7 +681,9 @@ impl RunProjection {
                 detail,
             } => {
                 if !self.integration.attempted_candidates.contains(candidate_id) {
-                    self.integration.attempted_candidates.push(candidate_id.clone());
+                    self.integration
+                        .attempted_candidates
+                        .push(candidate_id.clone());
                 }
                 self.integration.applied_candidate = if *applied {
                     Some(candidate_id.clone())
@@ -737,8 +762,10 @@ impl RunProjection {
     fn accumulate_duration(&mut self, node: NodeId, duration: DurationMs) {
         match node.class() {
             crate::graph::NodeClass::Agent => {
-                self.metrics.agent_duration_ms =
-                    self.metrics.agent_duration_ms.saturating_add(duration.millis());
+                self.metrics.agent_duration_ms = self
+                    .metrics
+                    .agent_duration_ms
+                    .saturating_add(duration.millis());
             }
             crate::graph::NodeClass::Command => {}
             crate::graph::NodeClass::Review => {}
@@ -823,7 +850,11 @@ impl RunManifest {
     }
 }
 
-pub fn replay(run_id: RunId, created_at: Timestamp, events: &[DurableEvent]) -> DomainResult<RunProjection> {
+pub fn replay(
+    run_id: RunId,
+    created_at: Timestamp,
+    events: &[DurableEvent],
+) -> DomainResult<RunProjection> {
     let mut projection = RunProjection::genesis(run_id, created_at);
     for event in events {
         projection.apply(event)?;
@@ -831,10 +862,7 @@ pub fn replay(run_id: RunId, created_at: Timestamp, events: &[DurableEvent]) -> 
     Ok(projection)
 }
 
-pub fn replay_from(
-    projection: &mut RunProjection,
-    events: &[DurableEvent],
-) -> DomainResult<u64> {
+pub fn replay_from(projection: &mut RunProjection, events: &[DurableEvent]) -> DomainResult<u64> {
     let mut applied = 0;
     for event in events {
         if event.sequence <= projection.last_event_sequence {

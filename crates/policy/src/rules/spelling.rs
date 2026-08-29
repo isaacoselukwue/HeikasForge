@@ -85,7 +85,10 @@ pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>>
                                 "user-facing text uses `{}` instead of `{}`",
                                 entry.discouraged, entry.preferred
                             ),
-                            format!("Replace `{}` with `{}`.", entry.discouraged, entry.preferred),
+                            format!(
+                                "Replace `{}` with `{}`.",
+                                entry.discouraged, entry.preferred
+                            ),
                         )
                         .at(path.clone(), literal.line, literal.column),
                     );
@@ -118,7 +121,10 @@ fn check_markdown(path: &str, contents: &str, dictionary: &Dictionary) -> Vec<Po
                             "documentation prose uses `{}` instead of `{}`",
                             entry.discouraged, entry.preferred
                         ),
-                        format!("Replace `{}` with `{}`.", entry.discouraged, entry.preferred),
+                        format!(
+                            "Replace `{}` with `{}`.",
+                            entry.discouraged, entry.preferred
+                        ),
                     )
                     .at(path.to_string(), index as u32 + 1, 1),
                 );
