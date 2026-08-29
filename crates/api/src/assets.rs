@@ -10,6 +10,9 @@ const CONTENT_SECURITY_POLICY: &str = "default-src 'none'; script-src 'self'; st
 img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; base-uri 'none'; \
 form-action 'none'; frame-ancestors 'none'; object-src 'none'";
 
+const MISSING_BUNDLE_NOTICE: &str =
+    "The graphical interface bundle is not embedded in this build. Run `pnpm --dir apps/web build` and rebuild the executable.";
+
 pub async fn serve(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
     let candidate = if path.is_empty() { "index.html" } else { path };
@@ -17,11 +20,7 @@ pub async fn serve(uri: Uri) -> Response {
         Some(file) => build_response(candidate, file.data.into_owned()),
         None => match EmbeddedAssets::get("index.html") {
             Some(file) => build_response("index.html", file.data.into_owned()),
-            None => (
-                StatusCode::NOT_FOUND,
-                "The graphical interface bundle is not embedded in this build. Run the workspace build task first.",
-            )
-                .into_response(),
+            None => (StatusCode::NOT_FOUND, MISSING_BUNDLE_NOTICE).into_response(),
         },
     }
 }

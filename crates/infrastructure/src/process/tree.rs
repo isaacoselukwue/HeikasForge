@@ -10,8 +10,6 @@ pub fn configure_isolated_group(command: &mut Command) {
 #[cfg(windows)]
 pub fn configure_isolated_group(command: &mut Command) {
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-    const CREATE_SUSPENDED: u32 = 0x0000_0004;
-    let _ = CREATE_SUSPENDED;
     command.creation_flags(CREATE_NEW_PROCESS_GROUP);
 }
 
@@ -75,7 +73,7 @@ pub fn register(child: &Child) -> Option<ProcessGroupHandle> {
     let process_id = child.id()?;
     unsafe {
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-        if job == 0 {
+        if job.is_null() {
             return None;
         }
         let mut information: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
@@ -83,11 +81,11 @@ pub fn register(child: &Child) -> Option<ProcessGroupHandle> {
         SetInformationJobObject(
             job,
             JobObjectExtendedLimitInformation,
-            &information as *const _ as *const core::ffi::c_void,
+            std::ptr::addr_of!(information).cast(),
             std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
         );
         let process: HANDLE = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, process_id);
-        if process == 0 {
+        if process.is_null() {
             CloseHandle(job);
             return None;
         }

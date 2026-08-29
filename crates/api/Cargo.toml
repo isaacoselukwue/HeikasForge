@@ -7,6 +7,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Loopback HTTP and Server-Sent Events delivery for Heikas Forge"
+build = "build.rs"
 
 [dependencies]
 heikas-domain = { workspace = true }

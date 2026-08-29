@@ -151,9 +151,39 @@ unsafe fn statvfs_call(path: *const std::os::raw::c_char, stats: *mut StatvfsRec
 
 #[cfg(windows)]
 fn available_space(path: &Path) -> DiskSpace {
-    let _ = path;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let mut target = path;
+    let existing = loop {
+        if target.exists() {
+            break target;
+        }
+        match target.parent() {
+            Some(parent) => target = parent,
+            None => break Path::new("C:\\"),
+        }
+    };
+    let mut wide: Vec<u16> = existing.as_os_str().encode_wide().collect();
+    wide.push(0);
+    let mut available: u64 = 0;
+    let mut total: u64 = 0;
+    let succeeded = unsafe {
+        GetDiskFreeSpaceExW(
+            wide.as_ptr(),
+            &mut available,
+            &mut total,
+            std::ptr::null_mut(),
+        )
+    };
+    if succeeded == 0 {
+        return DiskSpace {
+            available_bytes: 0,
+            total_bytes: 0,
+        };
+    }
     DiskSpace {
-        available_bytes: u64::MAX / 2,
-        total_bytes: u64::MAX / 2,
+        available_bytes: available,
+        total_bytes: total,
     }
 }

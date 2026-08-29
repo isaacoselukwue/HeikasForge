@@ -2,6 +2,7 @@ pub mod authorship;
 pub mod dependencies;
 pub mod documentation;
 pub mod internal_readme;
+pub mod leakage;
 pub mod naming;
 pub mod source;
 pub mod spelling;
@@ -55,6 +56,8 @@ pub fn run_all(repository: &TrackedRepository) -> PolicyResult<PolicyReport> {
             dependencies::RULE.to_string(),
             documentation::REMOTE_ASSET_RULE.to_string(),
             documentation::MEDIA_RULE.to_string(),
+            leakage::HOST_PATH_RULE.to_string(),
+            leakage::SECRET_RULE.to_string(),
             internal_readme::RULE.to_string(),
             authorship::RULE.to_string(),
         ],
@@ -66,6 +69,7 @@ pub fn run_all(repository: &TrackedRepository) -> PolicyResult<PolicyReport> {
     report.extend(spelling::check(repository)?);
     report.extend(dependencies::check(repository)?);
     report.extend(documentation::check(repository)?);
+    report.extend(leakage::check(repository)?);
     report.extend(internal_readme::check(repository)?);
     report.extend(authorship::check(repository)?);
     Ok(report)

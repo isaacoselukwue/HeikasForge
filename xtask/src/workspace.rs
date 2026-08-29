@@ -166,14 +166,16 @@ pub fn copy_tree(source: &Path, destination: &Path) -> TaskResult<()> {
     Ok(())
 }
 
+pub const FIXTURE_EMAIL: &str = "heikas-fixture@localhost.invalid";
+
 pub fn git_email(root: &Path) -> TaskResult<String> {
     let output = run("git", &["config", "user.email"], root, &[])?;
     let email = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if email.is_empty() {
-        return Err(TaskError::Missing(
-            "no Git email is configured, so the demonstration cannot create a commit identity"
-                .to_string(),
-        ));
+        eprintln!(
+            "no Git email is configured on this host, so the disposable fixture repository uses {FIXTURE_EMAIL}"
+        );
+        return Ok(FIXTURE_EMAIL.to_string());
     }
     Ok(email)
 }

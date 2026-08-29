@@ -1,12 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const workspaceRoot = resolve(here, "..", "..", "..");
-export const runtimeFile = join(here, ".runtime.json");
+export const runtimeFile = join(tmpdir(), "heikas-forge-browser-runtime.json");
 
 export interface RuntimeDescriptor {
   baseUrl: string;
