@@ -1,0 +1,193 @@
+exempt_literals = [
+    "authorization",
+    "content-type",
+    "www-authenticate",
+    "proxy-authorization",
+    "x-authorization",
+    "organization",
+    "color",
+    "colors",
+    "behavior",
+    "center",
+    "serialize",
+    "deserialize",
+    "normalize",
+]
+
+description = "British English preference dictionary for the repository policy check. The spelling rule never scans this file because it necessarily contains the discouraged spellings that it detects. Tokens are compared whole, treating hyphen and underscore as word characters, so class names such as items-center are not reported."
+
+[[entries]]
+discouraged = "optimize"
+preferred = "optimise"
+
+[[entries]]
+discouraged = "optimized"
+preferred = "optimised"
+
+[[entries]]
+discouraged = "optimizing"
+preferred = "optimising"
+
+[[entries]]
+discouraged = "optimization"
+preferred = "optimisation"
+
+[[entries]]
+discouraged = "authorize"
+preferred = "authorise"
+
+[[entries]]
+discouraged = "authorized"
+preferred = "authorised"
+
+[[entries]]
+discouraged = "authorization"
+preferred = "authorisation"
+
+[[entries]]
+discouraged = "organize"
+preferred = "organise"
+
+[[entries]]
+discouraged = "organized"
+preferred = "organised"
+
+[[entries]]
+discouraged = "organization"
+preferred = "organisation"
+
+[[entries]]
+discouraged = "initialize"
+preferred = "initialise"
+
+[[entries]]
+discouraged = "initialized"
+preferred = "initialised"
+
+[[entries]]
+discouraged = "initialization"
+preferred = "initialisation"
+
+[[entries]]
+discouraged = "normalize"
+preferred = "normalise"
+
+[[entries]]
+discouraged = "normalized"
+preferred = "normalised"
+
+[[entries]]
+discouraged = "normalization"
+preferred = "normalisation"
+
+[[entries]]
+discouraged = "synchronize"
+preferred = "synchronise"
+
+[[entries]]
+discouraged = "synchronized"
+preferred = "synchronised"
+
+[[entries]]
+discouraged = "recognize"
+preferred = "recognise"
+
+[[entries]]
+discouraged = "recognized"
+preferred = "recognised"
+
+[[entries]]
+discouraged = "prioritize"
+preferred = "prioritise"
+
+[[entries]]
+discouraged = "summarize"
+preferred = "summarise"
+
+[[entries]]
+discouraged = "summarized"
+preferred = "summarised"
+
+[[entries]]
+discouraged = "analyze"
+preferred = "analyse"
+
+[[entries]]
+discouraged = "analyzed"
+preferred = "analysed"
+
+[[entries]]
+discouraged = "analyzing"
+preferred = "analysing"
+
+[[entries]]
+discouraged = "colors"
+preferred = "colours"
+
+[[entries]]
+discouraged = "colored"
+preferred = "coloured"
+
+[[entries]]
+discouraged = "behavior"
+preferred = "behaviour"
+
+[[entries]]
+discouraged = "behaviors"
+preferred = "behaviours"
+
+[[entries]]
+discouraged = "centered"
+preferred = "centred"
+
+[[entries]]
+discouraged = "canceled"
+preferred = "cancelled"
+
+[[entries]]
+discouraged = "canceling"
+preferred = "cancelling"
+
+[[entries]]
+discouraged = "cancelation"
+preferred = "cancellation"
+
+[[entries]]
+discouraged = "labeled"
+preferred = "labelled"
+
+[[entries]]
+discouraged = "labeling"
+preferred = "labelling"
+
+[[entries]]
+discouraged = "fulfill"
+preferred = "fulfil"
+
+[[entries]]
+discouraged = "defense"
+preferred = "defence"
+
+[[entries]]
+discouraged = "offense"
+preferred = "offence"
+
+[[entries]]
+discouraged = "favorite"
+preferred = "favourite"
+
+[[entries]]
+discouraged = "honor"
+preferred = "honour"
+
+[[entries]]
+discouraged = "neighbor"
+preferred = "neighbour"
+
+[[entries]]
+discouraged = "traveled"
+preferred = "travelled"
+
+[[entries]]
+discouraged = "modeling"
+preferred = "modelling"

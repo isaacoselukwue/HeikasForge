@@ -1,0 +1,80 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/domain",
+    "crates/application",
+    "crates/infrastructure",
+    "crates/api",
+    "crates/cli",
+    "crates/policy",
+    "xtask",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.98"
+license = "MIT"
+authors = ["Isaac Oselukwue"]
+repository = "https://github.com/isaacoselukwue/heikas-forge"
+homepage = "https://github.com/isaacoselukwue/heikas-forge"
+description = "Local-first agentic software engineering orchestrator"
+
+[workspace.dependencies]
+heikas-domain = { path = "crates/domain", version = "1.0.0" }
+heikas-application = { path = "crates/application", version = "1.0.0" }
+heikas-infrastructure = { path = "crates/infrastructure", version = "1.0.0" }
+heikas-api = { path = "crates/api", version = "1.0.0" }
+heikas-policy = { path = "crates/policy", version = "1.0.0" }
+
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.140", features = ["preserve_order"] }
+thiserror = "2.0.12"
+uuid = { version = "1.17.0", features = ["v7", "serde", "std"] }
+blake3 = "1.8.2"
+time = { version = "0.3.41", features = ["serde", "formatting", "parsing", "macros", "std"] }
+tokio = { version = "1.45.1", features = ["rt-multi-thread", "macros", "process", "fs", "io-util", "sync", "time", "signal"] }
+tokio-util = { version = "0.7.15", features = ["io"] }
+tokio-stream = { version = "0.1.17", features = ["sync"] }
+futures = "0.3.31"
+async-trait = "0.1.88"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json", "fmt", "registry"] }
+axum = { version = "0.8.4", features = ["macros", "http2"] }
+axum-extra = { version = "0.10.1", features = ["cookie"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.4", features = ["set-header", "limit", "trace", "cors"] }
+hyper = "1.6.0"
+clap = { version = "4.5.39", features = ["derive", "env", "wrap_help"] }
+clap_complete = "4.5.50"
+toml = "0.8.22"
+globset = "0.4.16"
+walkdir = "2.5.0"
+regex = "1.11.1"
+tempfile = "3.20.0"
+fs4 = { version = "0.13.1", features = ["sync"] }
+quick-xml = "0.37.5"
+reqwest = { version = "0.12.18", default-features = false, features = ["json", "rustls-tls", "stream"] }
+rust-embed = { version = "8.7.2", features = ["mime-guess"] }
+mime_guess = "2.0.5"
+zip = { version = "2.4.2", default-features = false, features = ["deflate", "time"] }
+sha2 = "0.10.9"
+rand = "0.9.1"
+schemars = { version = "0.8.22", features = ["preserve_order"] }
+similar = "2.7.0"
+unicode-width = "0.2.0"
+gif = "0.13.1"
+png = "0.17.16"
+color_quant = "1.1.0"
+num_cpus = "1.17.0"
+nix = { version = "0.30.1", features = ["signal", "process"] }
+windows-sys = { version = "0.59.0", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev]
+debug = 1

@@ -1,0 +1,37 @@
+[package]
+name = "heikas-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Loopback HTTP and Server-Sent Events delivery for Heikas Forge"
+
+[dependencies]
+heikas-domain = { workspace = true }
+heikas-application = { workspace = true }
+heikas-infrastructure = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+rust-embed = { workspace = true }
+mime_guess = { workspace = true }
+rand = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }
+schemars = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
+reqwest = { workspace = true, features = ["cookies"] }

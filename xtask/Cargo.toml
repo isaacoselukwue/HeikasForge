@@ -1,0 +1,26 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Workspace automation tasks for Heikas Forge"
+publish = false
+
+[dependencies]
+heikas-domain = { workspace = true }
+heikas-application = { workspace = true }
+heikas-infrastructure = { workspace = true }
+heikas-policy = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+walkdir = { workspace = true }
+gif = { workspace = true }
+png = { workspace = true }
+color_quant = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
