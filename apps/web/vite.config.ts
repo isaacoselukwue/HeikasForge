@@ -18,15 +18,14 @@ export default defineConfig({
     cssCodeSplit: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          graph: ["@xyflow/react"],
-          editor: [
-            "@codemirror/state",
-            "@codemirror/view",
-            "@codemirror/lang-markdown",
-            "@codemirror/commands",
-            "@codemirror/language",
-          ],
+        manualChunks: (identifier: string) => {
+          if (identifier.includes("@xyflow")) {
+            return "graph";
+          }
+          if (identifier.includes("@codemirror") || identifier.includes("@lezer")) {
+            return "editor";
+          }
+          return undefined;
         },
       },
     },

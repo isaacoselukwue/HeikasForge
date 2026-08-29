@@ -55,7 +55,7 @@ walkdir = "2.5.0"
 regex = "1.11.1"
 tempfile = "3.20.0"
 fs4 = { version = "0.13.1", features = ["sync"] }
-quick-xml = "0.37.5"
+quick-xml = "0.41.0"
 reqwest = { version = "0.12.18", default-features = false, features = ["json", "rustls-tls", "stream"] }
 rust-embed = { version = "8.7.2", features = ["mime-guess"] }
 mime_guess = "2.0.5"

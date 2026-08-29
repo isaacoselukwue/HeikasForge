@@ -105,7 +105,7 @@ fn collect_attributes(element: &quick_xml::events::BytesStart<'_>) -> Vec<(Strin
             (
                 String::from_utf8_lossy(attribute.key.as_ref()).to_string(),
                 attribute
-                    .unescape_value()
+                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
                     .map(|value| value.to_string())
                     .unwrap_or_default(),
             )
