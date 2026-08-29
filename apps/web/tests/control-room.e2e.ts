@@ -59,9 +59,7 @@ test.describe("the control room", () => {
     await expect(authenticated.getByRole("heading", { name: /^Winner/ })).toBeVisible();
     await expect(authenticated.getByText(/decided by Changed lines/)).toBeVisible();
     await expect(authenticated.getByRole("heading", { name: "Exclusion reasons" })).toBeVisible();
-    await expect(
-      authenticated.getByText(/declared 3 tests at the baseline/).first(),
-    ).toBeVisible();
+    await expect(authenticated.getByText(/declared 3 tests at the baseline/).first()).toBeVisible();
 
     const rows = authenticated.getByRole("row");
     await expect(rows).toHaveCount(4);
@@ -113,9 +111,9 @@ test.describe("the control room", () => {
     await authenticated.goto(`${runtime.baseUrl}/doctor`);
     await authenticated.getByLabel("Repository path").fill(runtime.repository);
     await authenticated.getByRole("button", { name: "Run the diagnosis" }).click();
-    await expect(
-      authenticated.getByRole("heading", { name: "Adapter matrix" }),
-    ).toBeVisible({ timeout: 120_000 });
+    await expect(authenticated.getByRole("heading", { name: "Adapter matrix" })).toBeVisible({
+      timeout: 120_000,
+    });
     await expect(authenticated.getByText("Host platform")).toBeVisible();
     await expect(authenticated.getByText("Repository", { exact: true })).toBeVisible();
   });
@@ -125,9 +123,7 @@ test.describe("the control room", () => {
     runtime,
   }) => {
     await authenticated.goto(`${runtime.baseUrl}/settings`);
-    await expect(
-      authenticated.getByText(runtime.heikasHome, { exact: true }),
-    ).toBeVisible();
+    await expect(authenticated.getByText(runtime.heikasHome, { exact: true })).toBeVisible();
     await expect(authenticated.getByText(/No telemetry leaves this machine/)).toBeVisible();
   });
 
