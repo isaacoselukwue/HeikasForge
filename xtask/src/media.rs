@@ -5,8 +5,9 @@ use color_quant::NeuQuant;
 use crate::error::{TaskError, TaskResult};
 use crate::workspace::{node_modules_binary, run_checked, workspace_root};
 
-pub const GIF_WIDTH: u16 = 960;
-pub const GIF_FRAME_DELAY_CENTISECONDS: u16 = 12;
+pub const GIF_WIDTH: u16 = 720;
+pub const GIF_FRAME_STRIDE: usize = 2;
+pub const GIF_FRAME_DELAY_CENTISECONDS: u16 = 22;
 
 pub fn media_directory() -> PathBuf {
     workspace_root().join("docs").join("media")
@@ -25,7 +26,8 @@ pub fn run(validate_only: bool) -> TaskResult<()> {
 }
 
 pub fn derive_animation() -> TaskResult<()> {
-    let frames = collect_frames()?;
+    let all = collect_frames()?;
+    let frames: Vec<std::path::PathBuf> = all.into_iter().step_by(GIF_FRAME_STRIDE).collect();
     if frames.is_empty() {
         return Err(TaskError::Missing(format!(
             "no captured frames were found in {}",

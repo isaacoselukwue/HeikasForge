@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-import { establishSession } from "@/api/client";
+import { openSession } from "@/api/client";
 import { LoadingState, ErrorState } from "@/components/StateViews";
 import { SessionContext } from "./sessionContext";
 
@@ -26,7 +26,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const { token, run } = readHashParameters();
     setInitialRunId(run);
-    establishSession(token)
+    openSession(token)
       .then((session) => {
         if (cancelled) {
           return;

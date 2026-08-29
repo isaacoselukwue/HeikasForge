@@ -9,6 +9,7 @@ use heikas_domain::graph::{graph_edges, NodeId};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ApiError, ApiResult};
+use crate::guard::read_cookie;
 use crate::session::{BOOTSTRAP_HEADER, CSRF_COOKIE, SESSION_COOKIE};
 use crate::state::ApiState;
 
@@ -96,6 +97,25 @@ pub async fn create_session(
         })?,
     );
     Ok(response)
+}
+
+pub async fn current_session(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> ApiResult<Json<SessionResponse>> {
+    let session_id = read_cookie(&headers, SESSION_COOKIE);
+    let session = state
+        .sessions
+        .validate(session_id.as_deref(), None, false)
+        .await
+        .map_err(|rejection| {
+            ApiError::unauthorised(rejection.message())
+                .with_remedy("Reopen the interface from the link that `heikas ui` printed.")
+        })?;
+    Ok(Json(SessionResponse {
+        csrf_token: session.csrf_token,
+        demonstration_mode: state.demonstration_mode,
+    }))
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]

@@ -142,7 +142,7 @@ pub fn execute(options: &DemonstrationOptions) -> TaskResult<DemonstrationOutcom
     let repository_argument = repository.display().to_string();
     let task_file = repository.join("TASK.md").display().to_string();
 
-    println!("Creating the demonstration run");
+    eprintln!("Creating the demonstration run");
     let created = invoke(
         &program,
         &[
@@ -164,7 +164,7 @@ pub fn execute(options: &DemonstrationOptions) -> TaskResult<DemonstrationOutcom
         .and_then(Value::as_str)
         .ok_or_else(|| TaskError::Invalid("the run identifier was not reported".to_string()))?
         .to_string();
-    println!("Run {run_id} paused for plan approval");
+    eprintln!("Run {run_id} paused for plan approval");
 
     invoke(
         &program,
@@ -178,7 +178,7 @@ pub fn execute(options: &DemonstrationOptions) -> TaskResult<DemonstrationOutcom
         &root,
         &environment,
     )?;
-    println!("Plan approved, candidates completed");
+    eprintln!("Plan approved, candidates completed");
 
     let after_candidates = invoke(&program, &["--json", "show", &run_id], &root, &environment)?;
     let status_after_candidates = after_candidates
@@ -201,7 +201,7 @@ pub fn execute(options: &DemonstrationOptions) -> TaskResult<DemonstrationOutcom
             &root,
             &environment,
         )?;
-        println!("Commit approved");
+        eprintln!("Commit approved");
     }
 
     let export_directory = options.work_directory.join("export");

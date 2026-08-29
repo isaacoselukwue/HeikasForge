@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, Eye, PencilLine, RotateCcw, ShieldOff } from "lucide-react";
 
 import {
@@ -25,6 +25,7 @@ export function PlanPage({ runId }: { runId: string }) {
   const updatePlan = useUpdatePlan();
   const revisePlan = useRevisePlan();
   const rejectPlan = useRejectPlan();
+  const navigate = useNavigate();
 
   const [mode, setMode] = useState<"read" | "edit">("read");
   const [draft, setDraft] = useState("");
@@ -300,11 +301,18 @@ export function PlanPage({ runId }: { runId: string }) {
                 busy={approvePlan.isPending}
                 icon={<CheckCircle2 aria-hidden className="size-4" />}
                 onClick={() => {
-                  approvePlan.mutate({
-                    runId,
-                    markdown: dirty ? draft : null,
-                    note: note.trim().length > 0 ? note.trim() : null,
-                  });
+                  approvePlan.mutate(
+                    {
+                      runId,
+                      markdown: dirty ? draft : null,
+                      note: note.trim().length > 0 ? note.trim() : null,
+                    },
+                    {
+                      onSuccess: () => {
+                        void navigate({ to: "/runs/$runId", params: { runId } });
+                      },
+                    },
+                  );
                 }}
               >
                 Approve and start candidates

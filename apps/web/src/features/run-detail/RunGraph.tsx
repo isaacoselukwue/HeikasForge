@@ -12,22 +12,26 @@ import type { Edge, Node } from "@xyflow/react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import type { GraphEdgeView, GraphNodeView } from "@/generated/api-types";
 
-const COLUMN_ORDER: Record<string, [number, number]> = {
+const NODE_LAYOUT: Record<string, [number, number]> = {
   prepare: [0, 0],
   plan: [1, 0],
   approval: [2, 0],
   fan_out: [3, 0],
-  implement_candidate: [4, -1],
-  test_candidate: [5, -1],
-  review_candidate: [6, -1],
-  repair_candidate: [5, 1],
-  join: [7, 0],
-  integrate_winner: [8, 0],
-  final_test: [9, 0],
-  final_review: [10, 0],
-  commit_approval: [11, 0],
-  commit: [12, 0],
+  implement_candidate: [0, 1],
+  test_candidate: [1, 1],
+  review_candidate: [2, 1],
+  join: [3, 1],
+  repair_candidate: [1, 2],
+  integrate_winner: [0, 3],
+  final_test: [1, 3],
+  final_review: [2, 3],
+  commit_approval: [3, 3],
+  commit: [4, 3],
 };
+
+const COLUMN_WIDTH = 196;
+const ROW_HEIGHT = 118;
+const NODE_WIDTH = 168;
 
 const STATE_COLOUR: Record<string, string> = {
   pending: "var(--state-neutral)",
@@ -49,16 +53,16 @@ export function RunGraph({ nodes, edges }: RunGraphProps) {
   const flowNodes = useMemo<Node[]>(
     () =>
       nodes.map((node) => {
-        const [column, lane] = COLUMN_ORDER[node.id] ?? [0, 0];
+        const [column, row] = NODE_LAYOUT[node.id] ?? [0, 0];
         const colour = STATE_COLOUR[node.state] ?? "var(--state-neutral)";
         return {
           id: node.id,
-          position: { x: column * 190, y: lane * 130 + 140 },
+          position: { x: column * COLUMN_WIDTH, y: row * ROW_HEIGHT },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
           data: {
             label: (
-              <div className="flex w-40 flex-col gap-1 text-left">
+              <div className="flex flex-col gap-0.5 text-left" style={{ width: NODE_WIDTH - 26 }}>
                 <span className="text-[13px] font-semibold text-[var(--text-primary)]">
                   {node.label}
                 </span>
@@ -75,8 +79,8 @@ export function RunGraph({ nodes, edges }: RunGraphProps) {
             background: "var(--surface-raised)",
             border: `1px solid ${colour}`,
             borderRadius: "10px",
-            padding: "10px 12px",
-            width: 176,
+            padding: "8px 12px",
+            width: NODE_WIDTH,
           },
           ariaLabel: `${node.label}, ${node.state.replace(/_/g, " ")}, ${String(node.attempts)} attempts`,
         } satisfies Node;
@@ -109,7 +113,7 @@ export function RunGraph({ nodes, edges }: RunGraphProps) {
 
   return (
     <div
-      className="h-[420px] w-full overflow-hidden rounded-[var(--radius-medium)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)]"
+      className="h-[460px] w-full overflow-hidden rounded-[var(--radius-medium)] border border-[var(--border-subtle)] bg-[var(--surface-sunken)]"
       role="group"
       aria-label="Run graph. Use the tab key to reach the graph controls."
     >
@@ -119,13 +123,13 @@ export function RunGraph({ nodes, edges }: RunGraphProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         fitView
-        fitViewOptions={{ padding: 0.18 }}
+        fitViewOptions={{ padding: 0.08 }}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable
-        minZoom={0.4}
-        maxZoom={1.6}
+        minZoom={0.3}
+        maxZoom={1.8}
       >
         <Background color="var(--border-subtle)" gap={18} />
         <Controls

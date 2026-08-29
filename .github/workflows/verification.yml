@@ -1,0 +1,130 @@
+name: Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  rust:
+    name: Rust on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Lint with warnings denied
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run the Rust test suite
+        run: cargo test --workspace
+      - name: Build the release executable
+        run: cargo build --release -p heikas-cli
+
+  frontend:
+    name: Interface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm --dir apps/web run format:check
+      - name: Lint
+        run: pnpm --dir apps/web run lint
+      - name: Type check
+        run: pnpm --dir apps/web run typecheck
+      - name: Component and accessibility tests
+        run: pnpm --dir apps/web run test
+      - name: Build the interface bundle
+        run: pnpm --dir apps/web run build
+
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the browser
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+      - name: Run the browser suite
+        run: pnpm --dir apps/web run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/test-results
+
+  policy:
+    name: Repository policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Repository conformance checks
+        run: cargo run -q -p heikas-cli -- --plain policy .
+      - name: Authorship verification
+        run: cargo run -q -p xtask -- authorship
+      - name: Public media validation
+        run: cargo run -q -p xtask -- media --validate-only
+      - name: Schema and wire type drift
+        run: |
+          cargo run -q -p heikas-cli -- schemas --output schemas
+          git diff --exit-code -- schemas
+
+  supply-chain:
+    name: Dependency audit and licences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: Check advisories, licences, bans and sources
+        run: cargo deny check
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Audit the interface dependencies
+        run: pnpm audit --audit-level high

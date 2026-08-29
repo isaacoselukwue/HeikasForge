@@ -18,7 +18,10 @@ async fn unknown_api_route(uri: axum::http::Uri) -> ApiError {
 pub fn router() -> Router<ApiState> {
     Router::new()
         .route("/api/v1/health", get(meta::health))
-        .route("/api/v1/session", post(meta::create_session))
+        .route(
+            "/api/v1/session",
+            get(meta::current_session).post(meta::create_session),
+        )
         .route("/api/v1/graph", get(meta::graph_definition))
         .route("/api/v1/config", get(meta::configuration))
         .route("/api/v1/doctor", post(meta::doctor))

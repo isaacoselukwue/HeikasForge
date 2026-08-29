@@ -226,6 +226,23 @@ export async function establishSession(bootstrapToken: string | null): Promise<S
   return session;
 }
 
+export async function resumeSession(): Promise<SessionResponse> {
+  const response = await fetch(`${API_BASE}/session`, {
+    method: "GET",
+    credentials: "same-origin",
+  });
+  const session = await parse<SessionResponse>(response);
+  setCsrfToken(session.csrf_token);
+  return session;
+}
+
+export async function openSession(bootstrapToken: string | null): Promise<SessionResponse> {
+  if (bootstrapToken !== null) {
+    return establishSession(bootstrapToken);
+  }
+  return resumeSession();
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
   configuration: () => request<ConfigurationResponse>("/config"),

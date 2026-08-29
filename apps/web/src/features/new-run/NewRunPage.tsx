@@ -426,11 +426,13 @@ export function NewRunPage() {
 
           <Panel title="Ready to start">
             <div className="flex flex-col gap-3">
-              {Object.entries(errors).map(([key, message]) => (
-                <p key={key} className="text-xs text-[var(--state-failure)]">
-                  {message}
+              {Object.keys(errors).length > 0 && (
+                <p role="status" className="text-xs text-[var(--state-failure)]">
+                  {Object.keys(errors).length === 1
+                    ? "One field still needs attention before the run can start."
+                    : `${String(Object.keys(errors).length)} fields still need attention before the run can start.`}
                 </p>
-              ))}
+              )}
               {createRun.isError && (
                 <ErrorState
                   title="The run could not be created"

@@ -42,6 +42,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/testing/**/*.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
+  {
     files: ["tests/**/*.ts", "scripts/**/*.mjs", "*.config.ts"],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {
@@ -49,6 +55,7 @@ export default tseslint.config(
     },
     rules: {
       "no-console": "off",
+      "no-empty-pattern": "off",
     },
   },
 );

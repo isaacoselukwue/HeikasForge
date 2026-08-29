@@ -218,47 +218,95 @@ pub async fn diagnose(
         }
 
         let factory = service.runtime_factory();
-        let driver = factory.agent_driver(configuration).await?;
-        let capabilities = driver.capabilities().await?;
-        adapters.push(AdapterStatus {
-            name: capabilities.driver.label().to_string(),
-            kind: "agent".to_string(),
-            available: capabilities.available,
-            version: capabilities.version.clone(),
-            requires_paid_account: capabilities.requires_paid_account,
-            isolation: Some(capabilities.isolation.label().to_string()),
-            detail: capabilities.diagnostics.join("; "),
-        });
-        if capabilities.available && capabilities.supports_structured_tool_calls {
-            checks.push(DoctorCheck::passed(
-                "agent",
-                "Agent",
-                "Agent driver",
-                format!(
-                    "{} is available with {} isolation",
-                    capabilities.driver.label(),
-                    capabilities.isolation.label()
-                ),
-            ));
-        } else if capabilities.available {
-            checks.push(DoctorCheck::failed(
-                "agent",
-                "Agent",
-                "Agent driver",
-                "the driver is available but does not support reliable structured tool calls",
-                "Select a model that supports structured tool calling.",
-            ));
-        } else {
-            checks.push(DoctorCheck::failed(
-                "agent",
-                "Agent",
-                "Agent driver",
-                capabilities.diagnostics.join("; "),
-                "Start the local model runtime or select a different driver.",
-            ));
+        let capabilities = match factory.agent_driver(configuration).await {
+            Ok(driver) => match driver.capabilities().await {
+                Ok(capabilities) => Some(capabilities),
+                Err(error) => {
+                    checks.push(DoctorCheck::failed(
+                        "agent",
+                        "Agent",
+                        "Agent driver",
+                        error.to_string(),
+                        "Start the local model runtime or select a different driver.",
+                    ));
+                    None
+                }
+            },
+            Err(error) => {
+                checks.push(DoctorCheck::failed(
+                    "agent",
+                    "Agent",
+                    "Agent driver",
+                    error.to_string(),
+                    "Correct the agent configuration in `.heikas/forge.toml`.",
+                ));
+                adapters.push(AdapterStatus {
+                    name: configuration.agent.driver.label().to_string(),
+                    kind: "agent".to_string(),
+                    available: false,
+                    version: None,
+                    requires_paid_account: configuration.agent.driver.requires_paid_account(),
+                    isolation: None,
+                    detail: error.to_string(),
+                });
+                None
+            }
+        };
+
+        if let Some(capabilities) = capabilities {
+            adapters.push(AdapterStatus {
+                name: capabilities.driver.label().to_string(),
+                kind: "agent".to_string(),
+                available: capabilities.available,
+                version: capabilities.version.clone(),
+                requires_paid_account: capabilities.requires_paid_account,
+                isolation: Some(capabilities.isolation.label().to_string()),
+                detail: capabilities.diagnostics.join("; "),
+            });
+            if capabilities.available && capabilities.supports_structured_tool_calls {
+                checks.push(DoctorCheck::passed(
+                    "agent",
+                    "Agent",
+                    "Agent driver",
+                    format!(
+                        "{} is available with {} isolation",
+                        capabilities.driver.label(),
+                        capabilities.isolation.label()
+                    ),
+                ));
+            } else if capabilities.available {
+                checks.push(DoctorCheck::failed(
+                    "agent",
+                    "Agent",
+                    "Agent driver",
+                    "the driver is available but does not support reliable structured tool calls",
+                    "Select a model that supports structured tool calling.",
+                ));
+            } else {
+                checks.push(DoctorCheck::failed(
+                    "agent",
+                    "Agent",
+                    "Agent driver",
+                    capabilities.diagnostics.join("; "),
+                    "Start the local model runtime or select a different driver.",
+                ));
+            }
         }
 
-        for provider in factory.review_providers(configuration).await? {
+        let providers = match factory.review_providers(configuration).await {
+            Ok(providers) => providers,
+            Err(error) => {
+                checks.push(DoctorCheck::failed(
+                    "review-providers",
+                    "Quality",
+                    "Review providers",
+                    error.to_string(),
+                    "Correct the quality configuration in `.heikas/forge.toml`.",
+                ));
+                Vec::new()
+            }
+        };
+        for provider in providers {
             let available = provider.available().await.unwrap_or(false);
             adapters.push(AdapterStatus {
                 name: provider.name().to_string(),
