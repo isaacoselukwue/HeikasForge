@@ -1,0 +1,18 @@
+[package]
+name = "heikas-fixture-harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Deterministic fixture scenarios used by the Heikas Forge test suites"
+publish = false
+
+[dependencies]
+heikas-domain = { workspace = true }
+heikas-application = { workspace = true }
+heikas-infrastructure = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+walkdir = { workspace = true }

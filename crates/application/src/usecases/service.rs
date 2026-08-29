@@ -333,9 +333,9 @@ impl ApplicationService {
         let now = self.base.clock.now();
         let mut summaries = Vec::new();
         for header in headers {
-            match self.base.store.load(header.run_id).await? {
-                Some(projection) => summaries.push(RunSummary::from_projection(&projection, now)),
-                None => continue,
+            match self.projection(header.run_id).await {
+                Ok(projection) => summaries.push(RunSummary::from_projection(&projection, now)),
+                Err(_) => continue,
             }
         }
         summaries.sort_by_key(|summary| std::cmp::Reverse(summary.created_at));
@@ -343,11 +343,24 @@ impl ApplicationService {
     }
 
     pub async fn projection(&self, run_id: RunId) -> ApplicationResult<RunProjection> {
-        self.base
+        let mut projection = match self.base.store.load(run_id).await? {
+            Some(projection) => projection,
+            None => {
+                if !self.base.store.exists(run_id).await? {
+                    return Err(ApplicationError::RunNotFound(run_id));
+                }
+                RunProjection::genesis(run_id, self.base.clock.now())
+            }
+        };
+        let pending = self
+            .base
             .store
-            .load(run_id)
-            .await?
-            .ok_or(ApplicationError::RunNotFound(run_id))
+            .read_after(run_id, projection.last_event_sequence)
+            .await?;
+        if !pending.is_empty() {
+            heikas_domain::state::replay_from(&mut projection, &pending)?;
+        }
+        Ok(projection)
     }
 
     pub async fn run_detail(&self, run_id: RunId) -> ApplicationResult<RunDetail> {

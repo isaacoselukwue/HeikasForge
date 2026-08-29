@@ -134,7 +134,8 @@ fn default_patterns() -> Vec<Regex> {
         r"AIza[0-9A-Za-z\-_]{35}",
         r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
         r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}",
-        r"(?i)\b(?:authorization|api[-_]?key|token|secret|password)\s*[:=]\s*['\x22]?[A-Za-z0-9/+_\-\.]{12,}['\x22]?",
+        r"(?i)\b(?:authorization|api[-_]?key|token|secret|password|passphrase|credential)\s*[:=]\s*(?:bearer\s+|token\s+|basic\s+)?['\x22]?[A-Za-z0-9/+_\-\.=]{12,}['\x22]?",
+        r"(?i)\b(?:bearer|basic)\s+[A-Za-z0-9\-._~+/]{12,}={0,2}",
         r"[A-Za-z][A-Za-z0-9+.\-]*://[^\s/@:]+:[^\s/@]+@[^\s]+",
     ]
     .into_iter()

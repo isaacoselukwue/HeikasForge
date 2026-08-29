@@ -4,10 +4,16 @@ pub mod plan;
 pub mod runs;
 pub mod stream;
 
-use axum::routing::{get, post, put};
+use axum::routing::{any, get, post, put};
 use axum::Router;
 
+use crate::error::ApiError;
 use crate::state::ApiState;
+
+async fn unknown_api_route(uri: axum::http::Uri) -> ApiError {
+    ApiError::not_found(format!("`{}` is not an endpoint of this API", uri.path()))
+        .with_remedy("Check the endpoint list in the documentation screen.")
+}
 
 pub fn router() -> Router<ApiState> {
     Router::new()
@@ -54,4 +60,5 @@ pub fn router() -> Router<ApiState> {
         .route("/api/v1/runs/{run_id}/stream", get(stream::stream_events))
         .route("/api/v1/runs/{run_id}/export", post(runs::export_run))
         .route("/api/v1/plan/{run_id}/versions/{version}", put(plan::noop))
+        .route("/api/{*unmatched}", any(unknown_api_route))
 }

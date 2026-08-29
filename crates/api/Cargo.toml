@@ -35,3 +35,4 @@ schemars = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
 reqwest = { workspace = true, features = ["cookies"] }
+uuid = { workspace = true }

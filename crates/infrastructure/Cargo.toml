@@ -46,5 +46,6 @@ nix = { workspace = true }
 windows-sys = { workspace = true }
 
 [dev-dependencies]
+heikas-fixture-harness = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros", "test-util"] }

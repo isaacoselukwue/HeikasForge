@@ -21,11 +21,26 @@ pub struct Dictionary {
 
 impl Dictionary {
     pub fn literal_is_exempt(&self, literal: &str) -> bool {
-        let trimmed = literal.trim().to_ascii_lowercase();
+        let trimmed = literal.trim();
+        let lowered = trimmed.to_ascii_lowercase();
+        if self
+            .exempt_literals
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(&lowered))
+        {
+            return true;
+        }
         self.exempt_literals
             .iter()
-            .any(|candidate| candidate.eq_ignore_ascii_case(&trimmed))
+            .any(|candidate| is_protocol_header_line(&lowered, candidate))
     }
+}
+
+fn is_protocol_header_line(literal: &str, identifier: &str) -> bool {
+    let Some(head) = literal.split(':').next() else {
+        return false;
+    };
+    head.trim().eq_ignore_ascii_case(identifier) && literal.len() > identifier.len()
 }
 
 pub fn looks_like_regular_expression(literal: &str) -> bool {
