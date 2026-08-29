@@ -14,6 +14,20 @@ use serde_json::{json, Value};
 use tempfile::TempDir;
 
 pub const AUTHOR: &str = "Isaac Oselukwue";
+
+pub fn python_interpreter() -> &'static str {
+    for candidate in ["python3", "python"] {
+        let probe = Command::new(candidate)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        if matches!(probe, Ok(status) if status.success()) {
+            return candidate;
+        }
+    }
+    panic!("no Python interpreter was found on the executable search path");
+}
 pub const EMAIL: &str = "fixture@localhost.invalid";
 
 pub fn workspace_root() -> PathBuf {
@@ -119,6 +133,10 @@ pub fn build_scenario(script: Value, repair_budget: u32, candidates: u8) -> Scen
                 "model = \"heikas-deterministic-fixture-1.0\"\nfixture_script = \"{}\"",
                 script_path.display()
             ),
+        )
+        .replace(
+            "program = \"python3\"",
+            &format!("program = \"{}\"", python_interpreter()),
         )
         .replace(
             "max_repairs_per_candidate = 2",

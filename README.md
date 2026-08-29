@@ -58,7 +58,7 @@ Architecture records live in [`docs/architecture/`](docs/architecture/).
 
 ## Quick start
 
-Requirements: Rust 1.98, Node.js 22, pnpm, Git and Python 3 for the bundled fixture.
+Requirements: Rust 1.98, Node.js 22, pnpm, Git and Python 3 for the bundled fixture. `ffmpeg` is needed only if you regenerate the documentation video.
 
 ```bash
 git clone https://github.com/isaacoselukwue/HeikasForge.git
@@ -142,7 +142,7 @@ An external adapter reports its real restriction strength. If it cannot honour a
 ```bash
 cargo xtask verify        # the complete local verification suite
 cargo xtask demo          # the deterministic end to end demonstration
-cargo xtask media         # derive the animation and MP4 from captured frames
+cargo xtask media         # derive the animation and MP4 from captured frames, needs ffmpeg
 cargo xtask authorship    # verify the identity on every commit
 cargo xtask schemas       # regenerate the JSON schemas and the frontend wire types
 

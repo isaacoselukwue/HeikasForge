@@ -6,6 +6,8 @@ use crate::rules::is_tracked_text;
 pub const HOST_PATH_RULE: &str = "leakage.no-host-paths";
 pub const SECRET_RULE: &str = "leakage.no-secret-material";
 
+pub const RULE_SOURCE_PATH: &str = "crates/policy/src/rules/leakage.rs";
+
 pub const PLACEHOLDER_ACCOUNTS: [&str; 8] = [
     "you", "operator", "user", "username", "runner", "ci", "example", "someone",
 ];
@@ -17,7 +19,10 @@ const DATA_EXTENSIONS: [&str; 9] = [
 pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>> {
     let mut findings = Vec::new();
     for path in &repository.tracked_files {
-        if !is_tracked_text(path) || path == crate::rules::spelling::DICTIONARY_PATH {
+        if !is_tracked_text(path)
+            || path == crate::rules::spelling::DICTIONARY_PATH
+            || path == RULE_SOURCE_PATH
+        {
             continue;
         }
         let Some(contents) = repository.read_text(path)? else {
@@ -68,11 +73,13 @@ pub fn host_account(line: &str) -> Option<String> {
             if account.is_empty() || remainder.len() == account.len() {
                 continue;
             }
-            let lowered = account.to_ascii_lowercase();
-            if PLACEHOLDER_ACCOUNTS.contains(&lowered.as_str()) {
+            if !account.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
+            }) {
                 continue;
             }
-            if lowered.starts_with('<') || lowered.starts_with('$') || lowered.starts_with('{') {
+            let lowered = account.to_ascii_lowercase();
+            if PLACEHOLDER_ACCOUNTS.contains(&lowered.as_str()) {
                 continue;
             }
             return Some(account);

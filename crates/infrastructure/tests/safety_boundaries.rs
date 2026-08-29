@@ -134,16 +134,14 @@ async fn a_path_that_escapes_the_worktree_is_refused() {
         .exists());
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_symbolic_link_out_of_the_worktree_is_refused() {
     let directory = worktree();
     let outside = TempDir::new().expect("a temporary directory");
     std::fs::write(outside.path().join("target.txt"), "outside\n").expect("the file writes");
-    #[cfg(unix)]
     std::os::unix::fs::symlink(outside.path(), directory.path().join("link"))
         .expect("the link creates");
-    #[cfg(not(unix))]
-    return;
 
     let executor = executor(
         &directory,

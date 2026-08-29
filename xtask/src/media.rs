@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use color_quant::NeuQuant;
 
 use crate::error::{TaskError, TaskResult};
-use crate::workspace::{node_modules_binary, run_checked, workspace_root};
+use crate::workspace::{run_checked, workspace_root};
 
 pub const GIF_WIDTH: u16 = 720;
 pub const GIF_FRAME_STRIDE: usize = 2;
@@ -88,21 +88,16 @@ fn locate_ffmpeg() -> TaskResult<PathBuf> {
         if path.is_file() {
             return Ok(path);
         }
-    }
-    let candidates = [
-        ".pnpm/ffmpeg-static@5.2.0_supports-color@7.2.0/node_modules/ffmpeg-static/ffmpeg",
-        "ffmpeg-static/ffmpeg",
-    ];
-    for candidate in candidates {
-        if let Some(path) = node_modules_binary(candidate) {
-            return Ok(path);
-        }
+        return Err(TaskError::Missing(format!(
+            "HEIKAS_FFMPEG points at `{}`, which is not a file",
+            path.display()
+        )));
     }
     if let Some(path) = search_path("ffmpeg") {
         return Ok(path);
     }
     Err(TaskError::Missing(
-        "no ffmpeg executable was found. Install it or run `pnpm install` so the local copy is fetched."
+        "no ffmpeg executable was found. Install ffmpeg, or set HEIKAS_FFMPEG to one. It is needed only to derive the MP4 when regenerating the documentation media."
             .to_string(),
     ))
 }

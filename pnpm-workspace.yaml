@@ -3,5 +3,3 @@ packages:
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"
-  - "esbuild"
-  - "ffmpeg-static"

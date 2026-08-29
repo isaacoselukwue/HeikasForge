@@ -10,6 +10,10 @@ fn runner() -> SupervisedProcessRunner {
     SupervisedProcessRunner::new(Vec::new())
 }
 
+fn python() -> &'static str {
+    heikas_fixture_harness::python_interpreter()
+}
+
 fn request(program: &str, arguments: &[&str], directory: &std::path::Path) -> ProcessRequest {
     ProcessRequest {
         program: program.to_string(),
@@ -29,7 +33,7 @@ async fn a_successful_command_reports_its_streams_and_status() {
     let outcome = runner()
         .run(
             request(
-                "python3",
+                python(),
                 &[
                     "-c",
                     "import sys; print('out'); print('err', file=sys.stderr)",
@@ -55,7 +59,7 @@ async fn a_failing_command_reports_its_exit_status() {
     let outcome = runner()
         .run(
             request(
-                "python3",
+                python(),
                 &["-c", "import sys; sys.exit(7)"],
                 directory.path(),
             ),
@@ -75,7 +79,7 @@ async fn the_environment_is_not_inherited_beyond_the_allowlist() {
     let outcome = runner()
         .run(
             request(
-                "python3",
+                python(),
                 &[
                     "-c",
                     "import os; print(os.environ.get('HEIKAS_TEST_SECRET_VALUE', 'absent'))",
@@ -97,7 +101,7 @@ async fn an_explicit_environment_entry_reaches_the_child() {
     let directory = TempDir::new().expect("a temporary directory");
     let (_sender, receiver) = watch::channel(false);
     let mut specification = request(
-        "python3",
+        python(),
         &[
             "-c",
             "import os; print(os.environ.get('HEIKAS_EXPLICIT', 'absent'))",
@@ -119,7 +123,7 @@ async fn a_command_that_exceeds_its_timeout_is_terminated() {
     let directory = TempDir::new().expect("a temporary directory");
     let (_sender, receiver) = watch::channel(false);
     let mut specification = request(
-        "python3",
+        python(),
         &["-c", "import time; time.sleep(60)"],
         directory.path(),
     );
@@ -140,7 +144,7 @@ async fn cancellation_terminates_a_running_command() {
     let directory = TempDir::new().expect("a temporary directory");
     let (sender, receiver) = watch::channel(false);
     let specification = request(
-        "python3",
+        python(),
         &["-c", "import time; time.sleep(60)"],
         directory.path(),
     );
@@ -170,7 +174,7 @@ async fn no_child_process_survives_a_timeout() {
         marker.display()
     );
     let (_sender, receiver) = watch::channel(false);
-    let mut specification = request("python3", &["-c", &script], directory.path());
+    let mut specification = request(python(), &["-c", &script], directory.path());
     specification.timeout_seconds = 2;
     let outcome = runner()
         .run(specification, receiver)
@@ -196,7 +200,7 @@ async fn output_beyond_the_limit_is_truncated_with_the_tail_preserved() {
     let directory = TempDir::new().expect("a temporary directory");
     let (_sender, receiver) = watch::channel(false);
     let mut specification = request(
-        "python3",
+        python(),
         &["-c", "print('a' * 60000); print('THE FINAL LINE')"],
         directory.path(),
     );
@@ -223,7 +227,7 @@ async fn a_missing_working_directory_is_reported_before_spawning() {
     let outcome = runner()
         .run(
             request(
-                "python3",
+                python(),
                 &["-c", "pass"],
                 std::path::Path::new("/heikas/absent"),
             ),
@@ -237,7 +241,7 @@ async fn a_missing_working_directory_is_reported_before_spawning() {
 async fn probing_reports_a_present_and_an_absent_executable() {
     let runner = Arc::new(runner());
     let present = runner
-        .probe_executable("python3")
+        .probe_executable(python())
         .await
         .expect("the probe runs");
     assert!(present.is_some());
@@ -257,7 +261,7 @@ async fn task_text_is_never_interpreted_by_a_shell() {
     let outcome = runner()
         .run(
             request(
-                "python3",
+                python(),
                 &["-c", "import sys; print(sys.argv[1])", &hostile],
                 directory.path(),
             ),

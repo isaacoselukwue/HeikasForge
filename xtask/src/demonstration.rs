@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{TaskError, TaskResult};
-use crate::workspace::{copy_tree, git_email, heikas_executable, run, run_checked, workspace_root};
+use crate::workspace::{
+    copy_tree, git_email, heikas_executable, python_interpreter, run, run_checked, workspace_root,
+};
 
 pub const DEMONSTRATION_AUTHOR: &str = "Isaac Oselukwue";
 
@@ -76,13 +78,19 @@ pub fn seed_repository(options: &DemonstrationOptions) -> TaskResult<PathBuf> {
     }
     let configuration_path = repository.join(".heikas").join("forge.toml");
     let configuration = std::fs::read_to_string(&configuration_path)?;
-    let updated = configuration.replace(
-        "model = \"heikas-deterministic-fixture-1.0\"",
-        &format!(
-            "model = \"heikas-deterministic-fixture-1.0\"\nfixture_script = \"{}\"",
-            script.display().to_string().replace('\\', "/")
-        ),
-    );
+    let interpreter = python_interpreter()?;
+    let updated = configuration
+        .replace(
+            "program = \"python3\"",
+            &format!("program = \"{interpreter}\""),
+        )
+        .replace(
+            "model = \"heikas-deterministic-fixture-1.0\"",
+            &format!(
+                "model = \"heikas-deterministic-fixture-1.0\"\nfixture_script = \"{}\"",
+                script.display().to_string().replace('\\', "/")
+            ),
+        );
     std::fs::write(&configuration_path, updated)?;
 
     let email = git_email(&root)?;

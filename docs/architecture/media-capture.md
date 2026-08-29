@@ -18,7 +18,7 @@ Every public image and video comes from the real application driven by the deter
 
 The animation is encoded in Rust from the captured frames using a neural quantiser to build one shared palette across the sequence, so the loop has no palette flicker. Frames are box-filtered down to seven hundred and twenty pixels wide and every second frame is kept.
 
-The MP4 is derived from the recorded WebM with an H.264 encoder. That is the only step that uses an external media tool, it runs only when regenerating documentation, and the product itself never depends on it at runtime.
+The MP4 is derived from the recorded WebM with an H.264 encoder. That is the only step that uses an external media tool. `ffmpeg` is located from `HEIKAS_FFMPEG` or the executable search path and is deliberately not a managed dependency, so an ordinary install never downloads a large media binary. It runs only when regenerating documentation, and the product itself never depends on it at runtime.
 
 ## Validation
 

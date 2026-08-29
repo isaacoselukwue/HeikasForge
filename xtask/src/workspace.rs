@@ -168,6 +168,23 @@ pub fn copy_tree(source: &Path, destination: &Path) -> TaskResult<()> {
 
 pub const FIXTURE_EMAIL: &str = "heikas-fixture@localhost.invalid";
 
+pub fn python_interpreter() -> TaskResult<&'static str> {
+    for candidate in ["python3", "python"] {
+        let probe = Command::new(candidate)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        if matches!(probe, Ok(status) if status.success()) {
+            return Ok(candidate);
+        }
+    }
+    Err(TaskError::Missing(
+        "no Python interpreter was found on the executable search path, so the fixture gates cannot run"
+            .to_string(),
+    ))
+}
+
 pub fn git_email(root: &Path) -> TaskResult<String> {
     let output = run("git", &["config", "user.email"], root, &[])?;
     let email = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -178,9 +195,4 @@ pub fn git_email(root: &Path) -> TaskResult<String> {
         return Ok(FIXTURE_EMAIL.to_string());
     }
     Ok(email)
-}
-
-pub fn node_modules_binary(relative: &str) -> Option<PathBuf> {
-    let candidate = workspace_root().join("node_modules").join(relative);
-    candidate.is_file().then_some(candidate)
 }
