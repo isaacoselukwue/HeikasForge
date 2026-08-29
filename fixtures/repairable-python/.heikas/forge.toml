@@ -1,0 +1,98 @@
+schema_version = 1
+
+[run]
+candidates = 3
+max_parallel_candidates = 3
+max_repairs_per_candidate = 2
+commit_policy = "manual"
+require_clean_repository = true
+wall_clock_seconds = 1800
+
+[agent]
+driver = "fake"
+model = "heikas-deterministic-fixture-1.0"
+max_turns = 12
+timeout_seconds = 120
+network = "disabled"
+
+[quality]
+profile = "strict"
+minimum_line_coverage = 80
+protect_existing_tests = true
+
+[[commands]]
+id = "format"
+program = "python3"
+args = ["scripts/gate.py", "format"]
+kind = "format"
+timeout_seconds = 120
+required = true
+
+[[commands]]
+id = "lint"
+program = "python3"
+args = ["scripts/gate.py", "lint"]
+kind = "lint"
+timeout_seconds = 120
+required = true
+
+[[commands]]
+id = "test"
+program = "python3"
+args = ["scripts/gate.py", "test"]
+kind = "test"
+timeout_seconds = 300
+required = true
+report_format = "junit_xml"
+report_path = "reports/junit.xml"
+
+[[commands]]
+id = "coverage"
+program = "python3"
+args = ["scripts/gate.py", "coverage"]
+kind = "coverage"
+timeout_seconds = 180
+required = true
+report_format = "lcov"
+report_path = "reports/coverage.info"
+
+[[commands]]
+id = "audit"
+program = "python3"
+args = ["scripts/gate.py", "audit"]
+kind = "audit"
+timeout_seconds = 120
+required = true
+
+[[commands]]
+id = "secret-scan"
+program = "python3"
+args = ["scripts/gate.py", "secret-scan"]
+kind = "secret_scan"
+timeout_seconds = 120
+required = true
+
+[[commands]]
+id = "static-analysis"
+program = "python3"
+args = ["scripts/gate.py", "static-analysis"]
+kind = "static_analysis"
+timeout_seconds = 180
+required = true
+report_format = "sarif"
+report_path = "reports/analysis.sarif"
+
+[[commands]]
+id = "policy"
+program = "python3"
+args = ["scripts/gate.py", "policy"]
+kind = "policy"
+timeout_seconds = 120
+required = true
+
+[git]
+branch_prefix = "heikas/run-"
+author_name = "Isaac Oselukwue"
+
+[policy]
+protected_paths = [".git/**", ".git", ".heikas/**", ".githooks/**", ".gitmodules", "scripts/gate.py"]

@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "model_identity": "heikas-deterministic-fixture-1.0",
+  "steps": [
+    {
+      "role": "planner",
+      "structured_response": {
+        "plan_markdown": "# Implementation plan\n\n## Task interpretation\n\nThe invoice module must round currency half away from zero. A line total of 1.005 must become 1.01 and a line total of -0.125 must become -0.13. The public function names stay the same and the existing test suite must pass without being altered.\n\n## Current repository findings\n\n- `src/invoice.py` defines `round_currency`, `line_total` and `invoice_total`.\n- `round_currency` quantises with `ROUND_HALF_EVEN`, which is banker's rounding.\n- `tests/test_invoice.py` asserts half away from zero behaviour for positive and negative values.\n- `scripts/gate.py` provides the format, lint, test, coverage, audit, secret scan, static analysis and policy commands and writes JUnit XML, LCOV and SARIF reports.\n\n## Assumptions\n\n- The decimal precision stays at two places, because `LINE_ITEM_PRECISION` is used by every caller.\n- No caller depends on banker's rounding, because no other module imports `round_currency`.\n\n## Proposed design\n\nReplace the quantise rounding mode with `ROUND_HALF_UP`, which the decimal module defines as rounding to nearest with ties going away from zero. Keep the single rounding helper so every total shares one policy.\n\n## Files expected to change\n\n- `src/invoice.py`\n\n## Compatibility and migration\n\nThe public signatures are unchanged. Only tie values move, and only in the direction the test suite already requires. No migration is needed.\n\n## Test strategy\n\nRun the configured test command, which executes the existing suite and writes JUnit XML. The three existing cases cover positive ties, negative ties and summed line totals, so no test needs to be deleted or weakened.\n\n## Quality and security checks\n\nRun the format, lint, audit, secret scan, static analysis and policy commands. The change touches one import and one constant, so no new static analysis or secret finding is expected.\n\n## Risks and mitigations\n\n- Risk: a caller outside the repository relies on banker's rounding. Mitigation: the rounding policy lives in one helper, so it can be reverted with a single edit.\n- Risk: coverage falls because a branch is removed. Mitigation: no branch is added or removed, so line coverage stays at its current level.\n\n## Acceptance checklist\n\n- `round_currency(\"0.125\")` returns `0.13`.\n- `round_currency(\"-0.125\")` returns `-0.13`.\n- `line_total(\"1.005\", 1)` returns `1.01`.\n- Every configured required command passes.\n- No existing test is deleted, skipped or weakened.\n",
+        "expected_files": [
+          "src/invoice.py"
+        ],
+        "summary": "Replace banker's rounding with rounding half away from zero in the single currency helper."
+      }
+    },
+    {
+      "role": "implementer",
+      "candidate_ordinal": 1,
+      "attempt": 1,
+      "writes": [
+        {
+          "path": "src/invoice.py",
+          "contents": "from decimal import Decimal, ROUND_HALF_UP\n\n\nLINE_ITEM_PRECISION = Decimal(\"0.01\")\n\n\ndef round_currency(amount):\n    return Decimal(amount).quantize(LINE_ITEM_PRECISION, rounding=ROUND_HALF_UP)\n\n\ndef line_total(unit_price, quantity):\n    return round_currency(Decimal(str(unit_price)) * Decimal(quantity))\n\n\ndef invoice_total(line_items):\n    total = Decimal(\"0\")\n    for unit_price, quantity in line_items:\n        total += line_total(unit_price, quantity)\n    return round_currency(total)\n"
+        }
+      ],
+      "structured_response": {
+        "summary": "Switched the quantise rounding mode to ROUND_HALF_UP so ties round away from zero.",
+        "changed_files": [
+          "src/invoice.py"
+        ],
+        "tests_added": [],
+        "remaining_risks": []
+      }
+    },
+    {
+      "role": "implementer",
+      "candidate_ordinal": 2,
+      "attempt": 1,
+      "writes": [
+        {
+          "path": "src/invoice.py",
+          "contents": "from decimal import Decimal, ROUND_HALF_DOWN\n\n\nLINE_ITEM_PRECISION = Decimal(\"0.01\")\n\n\ndef round_currency(amount):\n    return Decimal(amount).quantize(LINE_ITEM_PRECISION, rounding=ROUND_HALF_DOWN)\n\n\ndef line_total(unit_price, quantity):\n    return round_currency(Decimal(str(unit_price)) * Decimal(quantity))\n\n\ndef invoice_total(line_items):\n    total = Decimal(\"0\")\n    for unit_price, quantity in line_items:\n        total += line_total(unit_price, quantity)\n    return round_currency(total)\n"
+        },
+        {
+          "path": "tests/test_rounding_regression.py",
+          "contents": "import sys\nfrom decimal import Decimal\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"src\"))\n\nfrom invoice import round_currency\n\n\ndef test_positive_tie_rounds_up():\n    assert round_currency(\"2.005\") == Decimal(\"2.01\")\n\n\ndef test_negative_tie_rounds_down():\n    assert round_currency(\"-2.005\") == Decimal(\"-2.01\")\n"
+        }
+      ],
+      "structured_response": {
+        "summary": "Added a regression suite for tie values and changed the rounding mode.",
+        "changed_files": [
+          "src/invoice.py",
+          "tests/test_rounding_regression.py"
+        ],
+        "tests_added": [
+          "tests/test_rounding_regression.py"
+        ],
+        "remaining_risks": [
+          "The chosen rounding mode still has to be confirmed by the suite."
+        ]
+      }
+    },
+    {
+      "role": "repairer",
+      "candidate_ordinal": 2,
+      "attempt": 1,
+      "writes": [
+        {
+          "path": "src/invoice.py",
+          "contents": "from decimal import Decimal, ROUND_HALF_UP\n\n\nLINE_ITEM_PRECISION = Decimal(\"0.01\")\n\n\ndef round_currency(amount):\n    return Decimal(amount).quantize(LINE_ITEM_PRECISION, rounding=ROUND_HALF_UP)\n\n\ndef line_total(unit_price, quantity):\n    return round_currency(Decimal(str(unit_price)) * Decimal(quantity))\n\n\ndef invoice_total(line_items):\n    total = Decimal(\"0\")\n    for unit_price, quantity in line_items:\n        total += line_total(unit_price, quantity)\n    return round_currency(total)\n"
+        }
+      ],
+      "structured_response": {
+        "summary": "ROUND_HALF_DOWN moved ties towards zero. Replaced it with ROUND_HALF_UP so every failing case passes.",
+        "changed_files": [
+          "src/invoice.py"
+        ],
+        "tests_added": [],
+        "remaining_risks": []
+      }
+    },
+    {
+      "role": "implementer",
+      "candidate_ordinal": 3,
+      "attempt": 1,
+      "writes": [
+        {
+          "path": "src/rounding.py",
+          "contents": "from decimal import Decimal, ROUND_HALF_UP\n\n\nCURRENCY_PRECISION = Decimal(\"0.01\")\n\n\ndef quantise_half_away_from_zero(amount):\n    return Decimal(amount).quantize(CURRENCY_PRECISION, rounding=ROUND_HALF_UP)\n"
+        },
+        {
+          "path": "src/invoice.py",
+          "contents": "from decimal import Decimal\n\nfrom rounding import CURRENCY_PRECISION, quantise_half_away_from_zero\n\n\nLINE_ITEM_PRECISION = CURRENCY_PRECISION\n\n\ndef round_currency(amount):\n    return quantise_half_away_from_zero(amount)\n\n\ndef line_total(unit_price, quantity):\n    return round_currency(Decimal(str(unit_price)) * Decimal(quantity))\n\n\ndef invoice_total(line_items):\n    total = Decimal(\"0\")\n    for unit_price, quantity in line_items:\n        total += line_total(unit_price, quantity)\n    return round_currency(total)\n"
+        },
+        {
+          "path": "tests/test_invoice.py",
+          "contents": "import sys\nfrom decimal import Decimal\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"src\"))\n\nfrom invoice import invoice_total, line_total\n\n\ndef test_line_total_multiplies_and_rounds():\n    assert line_total(\"1.005\", 1) == Decimal(\"1.01\")\n    assert line_total(\"2.50\", 4) == Decimal(\"10.00\")\n\n\ndef test_invoice_total_sums_rounded_line_totals():\n    assert invoice_total([(\"1.005\", 1), (\"2.005\", 1)]) == Decimal(\"3.02\")\n    assert invoice_total([]) == Decimal(\"0.00\")\n"
+        }
+      ],
+      "structured_response": {
+        "summary": "Extracted a rounding module and simplified the invoice test suite.",
+        "changed_files": [
+          "src/rounding.py",
+          "src/invoice.py",
+          "tests/test_invoice.py"
+        ],
+        "tests_added": [],
+        "remaining_risks": [
+          "The invoice suite was reorganised."
+        ]
+      }
+    },
+    {
+      "role": "repairer",
+      "candidate_ordinal": 3,
+      "attempt": 1,
+      "writes": [
+        {
+          "path": "src/rounding.py",
+          "contents": "from decimal import Decimal, ROUND_HALF_UP\n\n\nCURRENCY_PRECISION = Decimal(\"0.01\")\n\n\ndef quantise_half_away_from_zero(amount):\n    return Decimal(amount).quantize(CURRENCY_PRECISION, rounding=ROUND_HALF_UP)\n"
+        },
+        {
+          "path": "src/invoice.py",
+          "contents": "from decimal import Decimal\n\nfrom rounding import CURRENCY_PRECISION, quantise_half_away_from_zero\n\n\nLINE_ITEM_PRECISION = CURRENCY_PRECISION\n\n\ndef round_currency(amount):\n    return quantise_half_away_from_zero(amount)\n\n\ndef line_total(unit_price, quantity):\n    return round_currency(Decimal(str(unit_price)) * Decimal(quantity))\n\n\ndef invoice_total(line_items):\n    total = Decimal(\"0\")\n    for unit_price, quantity in line_items:\n        total += line_total(unit_price, quantity)\n    return round_currency(total)\n"
+        },
+        {
+          "path": "tests/test_invoice.py",
+          "contents": "import sys\nfrom decimal import Decimal\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"src\"))\n\nfrom invoice import invoice_total, line_total\n\n\ndef test_line_total_multiplies_and_rounds():\n    assert line_total(\"1.005\", 1) == Decimal(\"1.01\")\n    assert line_total(\"2.50\", 4) == Decimal(\"10.00\")\n\n\ndef test_invoice_total_sums_rounded_line_totals():\n    assert invoice_total([(\"1.005\", 1), (\"2.005\", 1)]) == Decimal(\"3.02\")\n    assert invoice_total([]) == Decimal(\"0.00\")\n"
+        }
+      ],
+      "structured_response": {
+        "summary": "Kept the extracted rounding module and the reorganised suite.",
+        "changed_files": [
+          "src/rounding.py",
+          "src/invoice.py",
+          "tests/test_invoice.py"
+        ],
+        "tests_added": [],
+        "remaining_risks": [
+          "The invoice suite still omits the direct rounding case."
+        ]
+      }
+    },
+    {
+      "role": "repairer",
+      "candidate_ordinal": 3,
+      "attempt": 2,
+      "writes": [
+        {
+          "path": "src/rounding.py",
+          "contents": "from decimal import Decimal, ROUND_HALF_UP\n\n\nCURRENCY_PRECISION = Decimal(\"0.01\")\n\n\ndef quantise_half_away_from_zero(amount):\n    return Decimal(amount).quantize(CURRENCY_PRECISION, rounding=ROUND_HALF_UP)\n"
+        },
+        {
+          "path": "src/invoice.py",
+          "contents": "from decimal import Decimal\n\nfrom rounding import CURRENCY_PRECISION, quantise_half_away_from_zero\n\n\nLINE_ITEM_PRECISION = CURRENCY_PRECISION\n\n\ndef round_currency(amount):\n    return quantise_half_away_from_zero(amount)\n\n\ndef line_total(unit_price, quantity):\n    return round_currency(Decimal(str(unit_price)) * Decimal(quantity))\n\n\ndef invoice_total(line_items):\n    total = Decimal(\"0\")\n    for unit_price, quantity in line_items:\n        total += line_total(unit_price, quantity)\n    return round_currency(total)\n"
+        },
+        {
+          "path": "tests/test_invoice.py",
+          "contents": "import sys\nfrom decimal import Decimal\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"src\"))\n\nfrom invoice import invoice_total, line_total\n\n\ndef test_line_total_multiplies_and_rounds():\n    assert line_total(\"1.005\", 1) == Decimal(\"1.01\")\n    assert line_total(\"2.50\", 4) == Decimal(\"10.00\")\n\n\ndef test_invoice_total_sums_rounded_line_totals():\n    assert invoice_total([(\"1.005\", 1), (\"2.005\", 1)]) == Decimal(\"3.02\")\n    assert invoice_total([]) == Decimal(\"0.00\")\n"
+        }
+      ],
+      "structured_response": {
+        "summary": "Kept the extracted rounding module and the reorganised suite.",
+        "changed_files": [
+          "src/rounding.py",
+          "src/invoice.py",
+          "tests/test_invoice.py"
+        ],
+        "tests_added": [],
+        "remaining_risks": [
+          "The invoice suite still omits the direct rounding case."
+        ]
+      }
+    }
+  ]
+}

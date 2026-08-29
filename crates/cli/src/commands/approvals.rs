@@ -1,19 +1,10 @@
 use std::path::PathBuf;
 
 use heikas_application::error::{ApplicationError, ApplicationResult};
-use serde::Serialize;
 
 use crate::commands::run_control::{dispatch_with_interrupt, report_dispatch};
 use crate::context::CommandContext;
 use crate::exit::ExitCode;
-
-#[derive(Debug, Serialize)]
-pub struct ApprovalOutcome {
-    pub run_id: String,
-    pub decision: String,
-    pub plan_version: Option<u32>,
-    pub detail: String,
-}
 
 pub async fn approve_plan(
     context: &CommandContext,
@@ -36,19 +27,14 @@ pub async fn approve_plan(
         .approve_plan(run_id, markdown, note)
         .await?;
     let projection = context.service().projection(run_id).await?;
-    let outcome = ApprovalOutcome {
-        run_id: run_id.to_string(),
-        decision: "approved".to_string(),
-        plan_version: projection.plan.current().map(|version| version.version),
-        detail: "the plan was approved and candidate work may begin".to_string(),
-    };
-    context.emit(&outcome, |palette| {
-        format!(
-            "{}\nPlan version {} approved for run {run_id}.\n",
-            palette.success("Plan approved"),
-            outcome.plan_version.unwrap_or(0)
-        )
-    });
+    let version = projection
+        .plan
+        .current()
+        .map(|entry| entry.version)
+        .unwrap_or(0);
+    context.note(&format!(
+        "Plan version {version} approved for run {run_id}."
+    ));
     match dispatch_with_interrupt(context, run_id).await? {
         Some(dispatch) => report_dispatch(context, run_id, dispatch).await,
         None => Ok(ExitCode::Interrupted),
