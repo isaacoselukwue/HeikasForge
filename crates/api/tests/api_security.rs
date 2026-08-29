@@ -386,19 +386,40 @@ async fn an_oversized_request_body_is_rejected() {
         "include_dirty": false,
         "demonstration_mode": false
     });
-    let response = harness
+    let outcome = harness
         .client
         .post(harness.url("/api/v1/runs"))
         .headers(origin_headers(&harness.origin(), Some(&csrf)))
         .json(&payload)
         .send()
+        .await;
+
+    match outcome {
+        Ok(response) => assert!(
+            response.status() == StatusCode::PAYLOAD_TOO_LARGE
+                || response.status() == StatusCode::BAD_REQUEST,
+            "an oversized body must be rejected, received {}",
+            response.status()
+        ),
+        Err(error) => assert!(
+            error.is_request() || error.is_body(),
+            "an oversized body must be refused rather than accepted, received {error}"
+        ),
+    }
+
+    let runs: serde_json::Value = harness
+        .client
+        .get(harness.url("/api/v1/runs"))
+        .send()
         .await
-        .expect("the request completes");
-    assert!(
-        response.status() == StatusCode::PAYLOAD_TOO_LARGE
-            || response.status() == StatusCode::BAD_REQUEST,
-        "an oversized body must be rejected, received {}",
-        response.status()
+        .expect("the listing completes")
+        .json()
+        .await
+        .expect("the listing decodes");
+    assert_eq!(
+        runs["runs"].as_array().expect("a run array").len(),
+        0,
+        "an oversized body must never create a run"
     );
     harness.shutdown().await;
 }
