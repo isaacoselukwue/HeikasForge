@@ -11,9 +11,32 @@ use heikas_application::ports::agent::{
 use heikas_application::ports::process::{ProcessRequest, ProcessRunner};
 use heikas_domain::clock::DurationMs;
 use serde_json::Value;
-use tokio::sync::OnceCell;
+use tokio::sync::{watch, OnceCell};
 
 use crate::agent::changes::{difference, observe_changed_paths};
+
+const BYPASS_ARGUMENTS: [&str; 8] = [
+    "--dangerously-skip-permissions",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--bypass-permissions",
+    "--skip-permissions",
+    "--no-sandbox",
+    "--full-auto",
+    "--yolo",
+    "--ask-for-approval",
+];
+
+const RESERVED_ARGUMENTS: [&str; 9] = [
+    "--permission-mode",
+    "--permission-prompt-tool",
+    "--allowedtools",
+    "--disallowedtools",
+    "--add-dir",
+    "--sandbox",
+    "--print",
+    "--output-format",
+    "--model",
+];
 
 pub struct ExternalCliAgentDriver {
     kind: AgentDriverKind,
@@ -22,18 +45,26 @@ pub struct ExternalCliAgentDriver {
     capabilities: OnceCell<AgentCapabilities>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RestrictionSupport {
+    honours_write_restriction: bool,
+    isolation: IsolationStrength,
+    diagnostics: Vec<String>,
+}
+
 impl ExternalCliAgentDriver {
     pub fn new(
         kind: AgentDriverKind,
         configuration: AgentConfiguration,
         processes: Arc<dyn ProcessRunner>,
-    ) -> Self {
-        Self {
+    ) -> ApplicationResult<Self> {
+        validate_extra_arguments(&configuration.extra_arguments)?;
+        Ok(Self {
             kind,
             configuration,
             processes,
             capabilities: OnceCell::new(),
-        }
+        })
     }
 
     fn executable(&self) -> String {
@@ -43,11 +74,18 @@ impl ExternalCliAgentDriver {
             .unwrap_or_else(|| default_executable(self.kind).to_string())
     }
 
-    fn restriction_arguments(&self, invocation: &AgentInvocation) -> Vec<String> {
-        let read_only = invocation.role.is_read_only();
+    fn subcommand_arguments(&self) -> Vec<String> {
+        match self.kind {
+            AgentDriverKind::CodexCli => vec!["exec".to_string()],
+            AgentDriverKind::OpenCode => vec!["run".to_string()],
+            _ => Vec::new(),
+        }
+    }
+
+    fn restriction_arguments(&self, read_only: bool) -> Vec<String> {
         match self.kind {
             AgentDriverKind::ClaudeCode => {
-                let mut args = vec![
+                vec![
                     "--print".to_string(),
                     "--output-format".to_string(),
                     "json".to_string(),
@@ -57,48 +95,138 @@ impl ExternalCliAgentDriver {
                     } else {
                         "acceptEdits".to_string()
                     },
-                ];
-                if read_only {
-                    args.push("--allowedTools".to_string());
-                    args.push("Read,Glob,Grep".to_string());
-                } else {
-                    args.push("--allowedTools".to_string());
-                    args.push("Read,Glob,Grep,Edit,Write".to_string());
-                }
-                args
+                    "--allowedTools".to_string(),
+                    if read_only {
+                        "Read,Glob,Grep".to_string()
+                    } else {
+                        "Read,Glob,Grep,Edit,Write".to_string()
+                    },
+                ]
             }
-            AgentDriverKind::CodexCli => {
-                let mut args = vec!["exec".to_string(), "--json".to_string()];
-                args.push("--sandbox".to_string());
-                args.push(if read_only {
+            AgentDriverKind::CodexCli => vec![
+                "--json".to_string(),
+                "--sandbox".to_string(),
+                if read_only {
                     "read-only".to_string()
                 } else {
                     "workspace-write".to_string()
-                });
-                args
-            }
-            AgentDriverKind::OpenCode => {
-                vec!["run".to_string(), "--print-logs".to_string()]
-            }
+                },
+            ],
+            AgentDriverKind::OpenCode => vec!["--print-logs".to_string()],
             _ => Vec::new(),
         }
     }
 
-    fn isolation_for(&self) -> IsolationStrength {
+    fn required_restriction_options(&self) -> &'static [&'static str] {
         match self.kind {
-            AgentDriverKind::CodexCli => IsolationStrength::OperatingSystemSandbox,
-            AgentDriverKind::ClaudeCode | AgentDriverKind::OpenCode => {
-                IsolationStrength::WorkingDirectoryRestricted
-            }
-            _ => IsolationStrength::ProcessEnvironment,
+            AgentDriverKind::ClaudeCode => &["--print", "--permission-mode", "--allowedTools"],
+            AgentDriverKind::CodexCli => &["--sandbox"],
+            _ => &[],
         }
     }
 
-    fn honours_write_restriction(&self) -> bool {
+    fn help_arguments(&self) -> Vec<String> {
+        match self.kind {
+            AgentDriverKind::CodexCli => vec!["exec".to_string(), "--help".to_string()],
+            _ => vec!["--help".to_string()],
+        }
+    }
+
+    fn prompt_reaches_stdin(&self) -> bool {
         matches!(
             self.kind,
             AgentDriverKind::ClaudeCode | AgentDriverKind::CodexCli
         )
+    }
+
+    fn prompt_arguments(&self) -> Vec<String> {
+        match self.kind {
+            AgentDriverKind::CodexCli => vec!["-".to_string()],
+            _ => Vec::new(),
+        }
+    }
+
+    async fn read_help_text(&self) -> Option<String> {
+        let (_sender, cancellation) = watch::channel(false);
+        let request = ProcessRequest {
+            program: self.executable(),
+            args: self.help_arguments(),
+            working_directory: std::env::temp_dir(),
+            environment: Vec::new(),
+            stdin: None,
+            timeout_seconds: 30,
+            max_output_bytes: 262_144,
+            label: format!("agent:{}:help", self.kind.as_str()),
+        };
+        let outcome = self.processes.run(request, cancellation).await.ok()?;
+        let mut text = outcome.stdout_text();
+        text.push('\n');
+        text.push_str(&outcome.stderr_text());
+        Some(text)
+    }
+
+    async fn detect_restrictions(&self, available: bool) -> RestrictionSupport {
+        let required = self.required_restriction_options();
+        if required.is_empty() {
+            return RestrictionSupport {
+                honours_write_restriction: false,
+                isolation: IsolationStrength::None,
+                diagnostics: vec![format!(
+                    "the `{}` adapter publishes no restriction option, so no write restriction can be enforced and read-only roles are refused",
+                    self.kind.as_str()
+                )],
+            };
+        }
+        if !available {
+            return RestrictionSupport {
+                honours_write_restriction: false,
+                isolation: IsolationStrength::None,
+                diagnostics: vec![
+                    "the executable is absent, so its restriction strength could not be detected"
+                        .to_string(),
+                ],
+            };
+        }
+        let Some(help) = self.read_help_text().await else {
+            return RestrictionSupport {
+                honours_write_restriction: false,
+                isolation: IsolationStrength::None,
+                diagnostics: vec![
+                    "the command line interface did not describe its options, so its restriction strength could not be detected"
+                        .to_string(),
+                ],
+            };
+        };
+        let lowered = help.to_lowercase();
+        let missing: Vec<&str> = required
+            .iter()
+            .copied()
+            .filter(|option| !lowered.contains(&option.to_lowercase()))
+            .collect();
+        if !missing.is_empty() {
+            return RestrictionSupport {
+                honours_write_restriction: false,
+                isolation: IsolationStrength::None,
+                diagnostics: vec![format!(
+                    "the installed `{}` does not accept {}, so the required restriction cannot be applied",
+                    self.executable(),
+                    missing.join(", ")
+                )],
+            };
+        }
+        let isolation = match self.kind {
+            AgentDriverKind::CodexCli => IsolationStrength::OperatingSystemSandbox,
+            _ => IsolationStrength::WorkingDirectoryRestricted,
+        };
+        RestrictionSupport {
+            honours_write_restriction: true,
+            isolation,
+            diagnostics: vec![format!(
+                "the installed `{}` accepts {}, which is the strongest restriction this adapter can apply",
+                self.executable(),
+                required.join(", ")
+            )],
+        }
     }
 
     async fn resolve_capabilities(&self) -> AgentCapabilities {
@@ -116,9 +244,11 @@ impl ExternalCliAgentDriver {
                 "the executable `{executable}` was not found on the path"
             ));
         }
-        if !self.honours_write_restriction() {
+        let restrictions = self.detect_restrictions(available).await;
+        diagnostics.extend(restrictions.diagnostics.clone());
+        if !self.prompt_reaches_stdin() {
             diagnostics.push(
-                "this adapter cannot enforce a read-only tool policy, so planning is refused"
+                "this adapter passes the prompt as a command line argument, so the task text is visible to other local processes"
                     .to_string(),
             );
         }
@@ -129,8 +259,8 @@ impl ExternalCliAgentDriver {
             model_identity: self.configuration.model.clone(),
             supports_structured_tool_calls: available,
             supports_non_interactive: true,
-            isolation: self.isolation_for(),
-            honours_write_restriction: self.honours_write_restriction(),
+            isolation: restrictions.isolation,
+            honours_write_restriction: restrictions.honours_write_restriction,
             context_window_tokens: None,
             endpoint: self.configuration.endpoint.clone(),
             requires_paid_account: self.kind.requires_paid_account(),
@@ -138,6 +268,27 @@ impl ExternalCliAgentDriver {
             diagnostics,
         }
     }
+}
+
+pub fn validate_extra_arguments(arguments: &[String]) -> ApplicationResult<()> {
+    for argument in arguments {
+        let name = argument
+            .split_once('=')
+            .map(|(name, _)| name)
+            .unwrap_or(argument)
+            .to_ascii_lowercase();
+        if BYPASS_ARGUMENTS.contains(&name.as_str()) {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "`{argument}` removes the safety restriction that this adapter is required to apply, so it may not appear in `agent.extra_arguments`"
+            )));
+        }
+        if RESERVED_ARGUMENTS.contains(&name.as_str()) {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "`{argument}` collides with a restriction that this adapter sets itself, so it may not appear in `agent.extra_arguments`"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn default_executable(kind: AgentDriverKind) -> &'static str {
@@ -172,18 +323,21 @@ impl AgentDriver for ExternalCliAgentDriver {
                 capabilities.diagnostics.join("; ")
             )));
         }
-        if invocation.role.is_read_only() && !capabilities.honours_write_restriction {
+        let read_only = invocation.role.is_read_only();
+        if read_only && !capabilities.honours_write_restriction {
             return Err(ApplicationError::PolicyViolation(format!(
-                "the `{}` adapter cannot enforce the read-only policy that the {} role requires",
+                "the `{}` adapter cannot enforce the read-only policy that the {} role requires: {}",
                 self.kind.as_str(),
-                invocation.role.as_str()
+                invocation.role.as_str(),
+                capabilities.diagnostics.join("; ")
             )));
         }
 
         let started = Instant::now();
         let before = observe_changed_paths(&invocation.worktree)?;
-        let mut args = self.restriction_arguments(&invocation);
+        let mut args = self.subcommand_arguments();
         args.extend(self.configuration.extra_arguments.iter().cloned());
+        args.extend(self.restriction_arguments(read_only));
         if let Some(model) = &self.configuration.model {
             args.push("--model".to_string());
             args.push(model.clone());
@@ -194,7 +348,13 @@ impl AgentDriver for ExternalCliAgentDriver {
             serde_json::to_string_pretty(&invocation.prompt.completion_schema)
                 .unwrap_or_else(|_| "{}".to_string())
         );
-        args.push(prompt);
+        let stdin = if self.prompt_reaches_stdin() {
+            args.extend(self.prompt_arguments());
+            Some(prompt.clone().into_bytes())
+        } else {
+            args.push(prompt.clone());
+            None
+        };
 
         let mut environment = Vec::new();
         for name in &invocation.environment_allowlist {
@@ -213,6 +373,7 @@ impl AgentDriver for ExternalCliAgentDriver {
             args,
             working_directory: invocation.worktree.clone(),
             environment,
+            stdin,
             timeout_seconds: invocation.time_budget_seconds,
             max_output_bytes: invocation.output_budget_bytes,
             label: format!("agent:{}", self.kind.as_str()),
@@ -222,6 +383,16 @@ impl AgentDriver for ExternalCliAgentDriver {
             .run(request, invocation.cancellation.clone())
             .await?;
         let after = observe_changed_paths(&invocation.worktree)?;
+        let changed_paths = difference(&before, &after);
+
+        if read_only && !changed_paths.is_empty() {
+            return Err(ApplicationError::PolicyViolation(format!(
+                "the `{}` adapter modified {} path(s) during the read-only {} role, so its restriction is not effective",
+                self.kind.as_str(),
+                changed_paths.len(),
+                invocation.role.as_str()
+            )));
+        }
 
         let exit_reason = if outcome.cancelled {
             AgentExitReason::Cancelled
@@ -253,7 +424,7 @@ impl AgentDriver for ExternalCliAgentDriver {
             structured_response,
             stdout: outcome.stdout_text(),
             stderr: outcome.stderr_text(),
-            changed_paths: difference(&before, &after),
+            changed_paths,
             duration: DurationMs::from_millis(started.elapsed().as_millis() as u64),
             diagnostics: capabilities.diagnostics.clone(),
         })

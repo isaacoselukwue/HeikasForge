@@ -1,15 +1,18 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use heikas_application::configuration::{
-    AgentConfiguration, AgentDriverKind, AiReviewConfiguration, EffectiveConfiguration,
-    GitConfiguration, QualityConfiguration, RedactionConfiguration, SonarMcpConfiguration,
-    SonarScannerConfiguration, CONFIGURATION_SCHEMA_VERSION,
+    AgentConfiguration, AgentDriverKind, AiReviewConfiguration, ConfigurationAuthority,
+    EffectiveConfiguration, GitConfiguration, QualityConfiguration, RedactionConfiguration,
+    RepositoryTrustDecision, RepositoryTrustRecord, RepositoryTrustState, SonarMcpConfiguration,
+    SonarScannerConfiguration, WithheldReason, WithheldSetting, CONFIGURATION_SCHEMA_VERSION,
     REPOSITORY_CONFIGURATION_RELATIVE_PATH,
 };
 use heikas_application::error::{ApplicationError, ApplicationResult};
 use heikas_application::model::request::CreateRunRequest;
+use heikas_application::ports::clock::Clock;
 use heikas_application::ports::runtime::ConfigurationResolver;
 use heikas_domain::budget::{CandidateCount, QualityProfile, RunBudgets};
 use heikas_domain::clock::TimeoutSeconds;
@@ -17,6 +20,7 @@ use heikas_domain::command::{
     CommandCatalogue, CommandId, CommandKind, CommandSpecification, ReportFormat,
     MAXIMUM_COMMAND_TIMEOUT_SECONDS,
 };
+use heikas_domain::identity::ContentDigest;
 use heikas_domain::path_policy::PathPolicy;
 use heikas_domain::retry::{NodeTimeouts, RetryPolicy};
 use heikas_domain::run::CommitPolicy;
@@ -24,16 +28,90 @@ use heikas_domain::run::CommitPolicy;
 use crate::atomic::write_atomic;
 use crate::configuration::detection::{detect_project_kind, proposed_commands};
 use crate::configuration::document::{CommandSection, ForgeDocument};
+use crate::configuration::trust::FileRepositoryTrustStore;
 use crate::layout::StoreLayout;
 use crate::process::supervisor::essential_environment_variables;
 
+struct AuthorityGate {
+    authority: ConfigurationAuthority,
+    trusted: bool,
+    withheld: Vec<WithheldSetting>,
+}
+
+impl AuthorityGate {
+    fn user() -> Self {
+        Self {
+            authority: ConfigurationAuthority::UserConfiguration,
+            trusted: true,
+            withheld: Vec::new(),
+        }
+    }
+
+    fn repository(trusted: bool) -> Self {
+        Self {
+            authority: ConfigurationAuthority::Repository,
+            trusted,
+            withheld: Vec::new(),
+        }
+    }
+
+    fn is_user(&self) -> bool {
+        self.authority == ConfigurationAuthority::UserConfiguration
+    }
+
+    fn withhold(&mut self, setting: &str, reason: WithheldReason) {
+        if self
+            .withheld
+            .iter()
+            .any(|entry| entry.setting == setting && entry.reason == reason)
+        {
+            return;
+        }
+        self.withheld.push(WithheldSetting {
+            setting: setting.to_string(),
+            reason,
+        });
+    }
+
+    fn owner_only(&mut self, setting: &str) -> bool {
+        if self.is_user() {
+            return true;
+        }
+        self.withhold(setting, WithheldReason::UserConfigurationOnly);
+        false
+    }
+
+    fn requires_trust(&mut self, setting: &str) -> bool {
+        if self.is_user() || self.trusted {
+            return true;
+        }
+        self.withhold(setting, WithheldReason::RequiresRepositoryTrust);
+        false
+    }
+
+    fn never_relaxes(&mut self, setting: &str, would_relax: bool) -> bool {
+        if self.is_user() || !would_relax {
+            return true;
+        }
+        self.withhold(setting, WithheldReason::WouldWeakenPolicy);
+        false
+    }
+}
+
 pub struct LayeredConfigurationResolver {
     layout: StoreLayout,
+    trust: FileRepositoryTrustStore,
+    clock: Arc<dyn Clock>,
 }
 
 impl LayeredConfigurationResolver {
-    pub fn new(layout: StoreLayout) -> Self {
-        Self { layout }
+    pub fn new(layout: StoreLayout, clock: Arc<dyn Clock>) -> Self {
+        let trust = FileRepositoryTrustStore::new(&layout);
+        Self {
+            layout,
+            trust,
+            clock,
+        }
     }
 
     fn base_configuration(repository: &Path) -> EffectiveConfiguration {
@@ -58,16 +136,26 @@ impl LayeredConfigurationResolver {
                 .map(str::to_string)
                 .collect(),
             demonstration_mode: false,
+            repository_trust: RepositoryTrustDecision::default(),
         }
     }
 
-    fn read_document(path: &Path) -> ApplicationResult<Option<ForgeDocument>> {
-        let contents = match std::fs::read_to_string(path) {
-            Ok(contents) => contents,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(crate::atomic::storage(path, "read", error)),
-        };
-        let document: ForgeDocument = toml::from_str(&contents).map_err(|error| {
+    fn read_bytes(path: &Path) -> ApplicationResult<Option<Vec<u8>>> {
+        match std::fs::read(path) {
+            Ok(contents) => Ok(Some(contents)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(crate::atomic::storage(path, "read", error)),
+        }
+    }
+
+    fn parse_document(path: &Path, bytes: &[u8]) -> ApplicationResult<ForgeDocument> {
+        let contents = std::str::from_utf8(bytes).map_err(|error| {
+            ApplicationError::InvalidConfiguration(format!(
+                "`{}` is not valid UTF-8: {error}",
+                path.display()
+            ))
+        })?;
+        let document: ForgeDocument = toml::from_str(contents).map_err(|error| {
             ApplicationError::InvalidConfiguration(format!(
                 "`{}` could not be parsed: {error}",
                 path.display()
@@ -81,12 +169,20 @@ impl LayeredConfigurationResolver {
                 )));
             }
         }
-        Ok(Some(document))
+        Ok(document)
+    }
+
+    fn read_document(path: &Path) -> ApplicationResult<Option<ForgeDocument>> {
+        match Self::read_bytes(path)? {
+            Some(bytes) => Ok(Some(Self::parse_document(path, &bytes)?)),
+            None => Ok(None),
+        }
     }
 
     fn apply(
         configuration: &mut EffectiveConfiguration,
         document: &ForgeDocument,
+        gate: &mut AuthorityGate,
     ) -> ApplicationResult<()> {
         if let Some(run) = &document.run {
             if let Some(candidates) = run.candidates {
@@ -105,31 +201,42 @@ impl LayeredConfigurationResolver {
                 configuration.budgets.max_output_bytes_per_stream = bytes;
             }
             if let Some(policy) = &run.commit_policy {
-                configuration.commit_policy = CommitPolicy::from_str(policy)?;
+                if gate.owner_only("run.commit_policy") {
+                    configuration.commit_policy = CommitPolicy::from_str(policy)?;
+                }
             }
             if let Some(require_clean) = run.require_clean_repository {
-                configuration.git.require_clean_repository = require_clean;
+                let relaxes = configuration.git.require_clean_repository && !require_clean;
+                if gate.never_relaxes("run.require_clean_repository", relaxes) {
+                    configuration.git.require_clean_repository = require_clean;
+                }
             }
         }
         if let Some(agent) = &document.agent {
             if let Some(driver) = &agent.driver {
-                configuration.agent.driver = AgentDriverKind::from_str(driver)?;
+                if gate.requires_trust("agent.driver") {
+                    configuration.agent.driver = AgentDriverKind::from_str(driver)?;
+                }
             }
             if agent.model.is_some() {
                 configuration.agent.model = agent.model.clone();
             }
-            if agent.endpoint.is_some() {
+            if agent.endpoint.is_some() && gate.owner_only("agent.endpoint") {
                 configuration.agent.endpoint = agent.endpoint.clone();
             }
-            if agent.api_key_environment_variable.is_some() {
+            if agent.api_key_environment_variable.is_some()
+                && gate.owner_only("agent.api_key_environment_variable")
+            {
                 configuration.agent.api_key_environment_variable =
                     agent.api_key_environment_variable.clone();
             }
-            if agent.executable.is_some() {
+            if agent.executable.is_some() && gate.owner_only("agent.executable") {
                 configuration.agent.executable = agent.executable.clone();
             }
             if let Some(extra) = &agent.extra_arguments {
-                configuration.agent.extra_arguments = extra.clone();
+                if gate.owner_only("agent.extra_arguments") {
+                    configuration.agent.extra_arguments = extra.clone();
+                }
             }
             if let Some(turns) = agent.max_turns {
                 configuration.agent.max_turns = turns;
@@ -141,33 +248,48 @@ impl LayeredConfigurationResolver {
                 configuration.timeouts.agent_seconds = seconds;
             }
             if let Some(network) = agent.network {
-                configuration.agent.network = network;
+                let relaxes = network.permissiveness_rank()
+                    > configuration.agent.network.permissiveness_rank();
+                if gate.never_relaxes("agent.network", relaxes) {
+                    configuration.agent.network = network;
+                }
             }
-            if agent.fixture_script.is_some() {
+            if agent.fixture_script.is_some() && gate.requires_trust("agent.fixture_script") {
                 configuration.agent.fixture_script = agent.fixture_script.clone();
             }
         }
         if let Some(quality) = &document.quality {
             if let Some(profile) = &quality.profile {
-                configuration.quality.profile = QualityProfile::from_str(profile)?;
+                let parsed = QualityProfile::from_str(profile)?;
+                let relaxes =
+                    parsed.strictness_rank() < configuration.quality.profile.strictness_rank();
+                if gate.never_relaxes("quality.profile", relaxes) {
+                    configuration.quality.profile = parsed;
+                }
             }
-            if quality.minimum_line_coverage.is_some() {
-                configuration.quality.minimum_line_coverage = quality.minimum_line_coverage;
+            if let Some(coverage) = quality.minimum_line_coverage {
+                let relaxes = configuration
+                    .quality
+                    .minimum_line_coverage
+                    .is_some_and(|current| coverage < current);
+                if gate.never_relaxes("quality.minimum_line_coverage", relaxes) {
+                    configuration.quality.minimum_line_coverage = Some(coverage);
+                }
             }
             if let Some(protect) = quality.protect_existing_tests {
-                configuration.quality.protect_existing_tests = protect;
+                let relaxes = configuration.quality.protect_existing_tests && !protect;
+                if gate.never_relaxes("quality.protect_existing_tests", relaxes) {
+                    configuration.quality.protect_existing_tests = protect;
+                }
             }
             if let Some(scanner) = &quality.sonar_scanner {
-                let target = &mut configuration.quality.sonar_scanner;
-                apply_scanner(target, scanner);
+                apply_scanner(&mut configuration.quality.sonar_scanner, scanner, gate);
             }
             if let Some(mcp) = &quality.sonar_mcp {
-                let target = &mut configuration.quality.sonar_mcp;
-                apply_mcp(target, mcp);
+                apply_mcp(&mut configuration.quality.sonar_mcp, mcp, gate);
             }
             if let Some(ai) = &quality.ai_review {
-                let target = &mut configuration.quality.ai_review;
-                apply_ai(target, ai);
+                apply_ai(&mut configuration.quality.ai_review, ai, gate);
             }
         }
         if let Some(git) = &document.git {
@@ -175,86 +297,168 @@ impl LayeredConfigurationResolver {
                 configuration.git.branch_prefix = prefix.clone();
             }
             if let Some(author) = &git.author_name {
-                configuration.git.author_name = author.clone();
+                if gate.owner_only("git.author_name") {
+                    configuration.git.author_name = author.clone();
+                }
             }
             if let Some(include_dirty) = git.include_dirty {
-                configuration.git.include_dirty = include_dirty;
+                if gate.owner_only("git.include_dirty") {
+                    configuration.git.include_dirty = include_dirty;
+                }
             }
         }
         if let Some(policy) = &document.policy {
             if let Some(protected) = &policy.protected_paths {
-                configuration.path_policy.protected_patterns = protected.clone();
+                configuration.path_policy.protected_patterns = if gate.is_user() {
+                    protected.clone()
+                } else {
+                    union(&configuration.path_policy.protected_patterns, protected)
+                };
             }
             if let Some(sensitive) = &policy.sensitive_paths {
-                configuration.path_policy.sensitive_patterns = sensitive.clone();
+                configuration.path_policy.sensitive_patterns = if gate.is_user() {
+                    sensitive.clone()
+                } else {
+                    union(&configuration.path_policy.sensitive_patterns, sensitive)
+                };
             }
             if let Some(bytes) = policy.maximum_read_bytes {
-                configuration.path_policy.maximum_read_bytes = bytes;
+                configuration.path_policy.maximum_read_bytes = if gate.is_user() {
+                    bytes
+                } else {
+                    bytes.min(configuration.path_policy.maximum_read_bytes)
+                };
             }
             if let Some(bytes) = policy.maximum_write_bytes {
-                configuration.path_policy.maximum_write_bytes = bytes;
+                configuration.path_policy.maximum_write_bytes = if gate.is_user() {
+                    bytes
+                } else {
+                    bytes.min(configuration.path_policy.maximum_write_bytes)
+                };
             }
         }
         if let Some(redaction) = &document.redaction {
             if let Some(variables) = &redaction.secret_environment_variables {
-                configuration.redaction.secret_environment_variables = variables.clone();
+                configuration.redaction.secret_environment_variables = if gate.is_user() {
+                    variables.clone()
+                } else {
+                    union(
+                        &configuration.redaction.secret_environment_variables,
+                        variables,
+                    )
+                };
             }
             if let Some(patterns) = &redaction.additional_patterns {
-                configuration.redaction.additional_patterns = patterns.clone();
+                configuration.redaction.additional_patterns = if gate.is_user() {
+                    patterns.clone()
+                } else {
+                    union(&configuration.redaction.additional_patterns, patterns)
+                };
             }
             if let Some(redact_home) = redaction.redact_home_prefix {
-                configuration.redaction.redact_home_prefix = redact_home;
+                let relaxes = configuration.redaction.redact_home_prefix && !redact_home;
+                if gate.never_relaxes("redaction.redact_home_prefix", relaxes) {
+                    configuration.redaction.redact_home_prefix = redact_home;
+                }
             }
         }
         if let Some(environment) = &document.environment {
             if let Some(allowlist) = &environment.allowlist {
-                let mut merged = essential_environment_variables()
-                    .into_iter()
-                    .map(str::to_string)
-                    .collect::<Vec<_>>();
-                for name in allowlist {
-                    if !merged.contains(name) {
-                        merged.push(name.clone());
+                if gate.is_user() {
+                    let mut merged = essential_environment_variables()
+                        .into_iter()
+                        .map(str::to_string)
+                        .collect::<Vec<_>>();
+                    for name in allowlist {
+                        if !merged.contains(name) {
+                            merged.push(name.clone());
+                        }
+                    }
+                    configuration.environment_allowlist = merged;
+                } else {
+                    let unknown: Vec<&String> = allowlist
+                        .iter()
+                        .filter(|name| !configuration.environment_allowlist.contains(name))
+                        .collect();
+                    if !unknown.is_empty() {
+                        gate.withhold("environment.allowlist", WithheldReason::WouldWeakenPolicy);
                     }
                 }
-                configuration.environment_allowlist = merged;
             }
         }
         if let Some(commands) = &document.commands {
-            let mut catalogue = CommandCatalogue::default();
-            for section in commands {
-                catalogue.commands.push(convert_command(section)?);
+            if gate.requires_trust("commands") {
+                let mut catalogue = CommandCatalogue::default();
+                for section in commands {
+                    catalogue.commands.push(convert_command(section)?);
+                }
+                configuration.commands = catalogue;
             }
-            configuration.commands = catalogue;
         }
         Ok(())
     }
+
+    async fn resolve_trust(
+        &self,
+        repository: &Path,
+        digest: &ContentDigest,
+    ) -> ApplicationResult<bool> {
+        Ok(self
+            .trust
+            .record_for(repository)?
+            .is_some_and(|record| &record.configuration_digest == digest))
+    }
+}
+
+fn union(current: &[String], additional: &[String]) -> Vec<String> {
+    let mut merged = current.to_vec();
+    for value in additional {
+        if !merged.contains(value) {
+            merged.push(value.clone());
+        }
+    }
+    merged
 }
 
 fn apply_scanner(
     target: &mut SonarScannerConfiguration,
     section: &crate::configuration::document::SonarScannerSection,
+    gate: &mut AuthorityGate,
 ) {
     if let Some(enabled) = section.enabled {
-        target.enabled = enabled;
+        let relaxes = target.enabled && !enabled;
+        if gate.never_relaxes("quality.sonar_scanner.enabled", relaxes) {
+            target.enabled = enabled;
+        }
     }
     if let Some(program) = &section.program {
-        target.program = program.clone();
+        if gate.requires_trust("quality.sonar_scanner.program") {
+            target.program = program.clone();
+        }
     }
     if let Some(arguments) = &section.arguments {
-        target.arguments = arguments.clone();
+        if gate.requires_trust("quality.sonar_scanner.arguments") {
+            target.arguments = arguments.clone();
+        }
     }
     if let Some(host) = &section.host_url {
-        target.host_url = host.clone();
+        if gate.owner_only("quality.sonar_scanner.host_url") {
+            target.host_url = host.clone();
+        }
     }
     if section.project_key.is_some() {
         target.project_key = section.project_key.clone();
     }
-    if section.token_environment_variable.is_some() {
+    if section.token_environment_variable.is_some()
+        && gate.owner_only("quality.sonar_scanner.token_environment_variable")
+    {
         target.token_environment_variable = section.token_environment_variable.clone();
     }
     if let Some(wait) = section.wait_for_quality_gate {
-        target.wait_for_quality_gate = wait;
+        let relaxes = target.wait_for_quality_gate && !wait;
+        if gate.never_relaxes("quality.sonar_scanner.wait_for_quality_gate", relaxes) {
+            target.wait_for_quality_gate = wait;
+        }
     }
     if let Some(seconds) = section.timeout_seconds {
         target.timeout = TimeoutSeconds::clamped(seconds, MAXIMUM_COMMAND_TIMEOUT_SECONDS);
@@ -264,17 +468,27 @@ fn apply_scanner(
 fn apply_mcp(
     target: &mut SonarMcpConfiguration,
     section: &crate::configuration::document::SonarMcpSection,
+    gate: &mut AuthorityGate,
 ) {
     if let Some(enabled) = section.enabled {
-        target.enabled = enabled;
+        let relaxes = target.enabled && !enabled;
+        if gate.never_relaxes("quality.sonar_mcp.enabled", relaxes) {
+            target.enabled = enabled;
+        }
     }
     if let Some(program) = &section.program {
-        target.program = program.clone();
+        if gate.requires_trust("quality.sonar_mcp.program") {
+            target.program = program.clone();
+        }
     }
     if let Some(arguments) = &section.arguments {
-        target.arguments = arguments.clone();
+        if gate.requires_trust("quality.sonar_mcp.arguments") {
+            target.arguments = arguments.clone();
+        }
     }
-    if section.token_environment_variable.is_some() {
+    if section.token_environment_variable.is_some()
+        && gate.owner_only("quality.sonar_mcp.token_environment_variable")
+    {
         target.token_environment_variable = section.token_environment_variable.clone();
     }
     if section.project_key.is_some() {
@@ -288,15 +502,23 @@ fn apply_mcp(
 fn apply_ai(
     target: &mut AiReviewConfiguration,
     section: &crate::configuration::document::AiReviewSection,
+    gate: &mut AuthorityGate,
 ) {
     if let Some(enabled) = section.enabled {
         target.enabled = enabled;
     }
     if let Some(advisory) = section.advisory_only {
-        target.advisory_only = advisory;
+        let relaxes = !target.advisory_only && advisory;
+        if gate.never_relaxes("quality.ai_review.advisory_only", relaxes) {
+            target.advisory_only = advisory;
+        }
     }
     if let Some(rules) = &section.gate_rules {
-        target.gate_rules = rules.clone();
+        target.gate_rules = if gate.is_user() {
+            rules.clone()
+        } else {
+            union(&target.gate_rules, rules)
+        };
     }
 }
 
@@ -333,18 +555,37 @@ fn convert_command(section: &CommandSection) -> ApplicationResult<CommandSpecifi
 impl ConfigurationResolver for LayeredConfigurationResolver {
     async fn detect(&self, repository: &Path) -> ApplicationResult<EffectiveConfiguration> {
         let mut configuration = Self::base_configuration(repository);
-        if let Some(document) = Self::read_document(&self.layout.user_configuration())? {
-            Self::apply(&mut configuration, &document)?;
+        let user_path = self.layout.user_configuration();
+        if let Some(document) = Self::read_document(&user_path)? {
+            Self::apply(&mut configuration, &document, &mut AuthorityGate::user())?;
         }
-        let repository_configuration = repository.join(REPOSITORY_CONFIGURATION_RELATIVE_PATH);
-        match Self::read_document(&repository_configuration)? {
-            Some(document) => Self::apply(&mut configuration, &document)?,
-            None => {
-                let kind = detect_project_kind(repository);
-                configuration.commands = CommandCatalogue {
-                    commands: proposed_commands(kind),
+        let repository_path = repository.join(REPOSITORY_CONFIGURATION_RELATIVE_PATH);
+        match Self::read_bytes(&repository_path)? {
+            Some(bytes) => {
+                let digest = ContentDigest::of_bytes(&bytes);
+                let document = Self::parse_document(&repository_path, &bytes)?;
+                let trusted = self.resolve_trust(repository, &digest).await?;
+                let mut gate = AuthorityGate::repository(trusted);
+                Self::apply(&mut configuration, &document, &mut gate)?;
+                configuration.repository_trust = RepositoryTrustDecision {
+                    state: if trusted {
+                        RepositoryTrustState::Trusted
+                    } else {
+                        RepositoryTrustState::Untrusted
+                    },
+                    configuration_digest: Some(digest),
+                    withheld: gate.withheld,
                 };
             }
+            None => {
+                configuration.repository_trust = RepositoryTrustDecision::default();
+            }
+        }
+        if configuration.commands.commands.is_empty() {
+            let kind = detect_project_kind(repository);
+            configuration.commands = CommandCatalogue {
+                commands: proposed_commands(kind),
+            };
         }
         Ok(configuration)
     }
@@ -367,12 +608,79 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
         let document = render_document(configuration);
         let path = repository.join(REPOSITORY_CONFIGURATION_RELATIVE_PATH);
         write_atomic(&path, document.as_bytes())?;
+        self.trust.grant(
+            repository,
+            ContentDigest::of_str(&document),
+            self.clock.now(),
+        )?;
         Ok(path)
     }
 
     async fn user_configuration_path(&self) -> ApplicationResult<PathBuf> {
         Ok(self.layout.user_configuration())
     }
+
+    async fn repository_trust(
+        &self,
+        repository: &Path,
+    ) -> ApplicationResult<RepositoryTrustDecision> {
+        Ok(self.detect(repository).await?.repository_trust)
+    }
+
+    async fn trust_repository(
+        &self,
+        repository: &Path,
+    ) -> ApplicationResult<RepositoryTrustRecord> {
+        let path = repository.join(REPOSITORY_CONFIGURATION_RELATIVE_PATH);
+        let Some(bytes) = Self::read_bytes(&path)? else {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "`{}` does not exist, so there is nothing to trust",
+                path.display()
+            )));
+        };
+        Self::parse_document(&path, &bytes)?;
+        self.trust.grant(
+            repository,
+            ContentDigest::of_bytes(&bytes),
+            self.clock.now(),
+        )
+    }
+
+    async fn revoke_repository_trust(&self, repository: &Path) -> ApplicationResult<bool> {
+        self.trust.revoke(repository)
+    }
+
+    async fn trusted_repositories(&self) -> ApplicationResult<Vec<RepositoryTrustRecord>> {
+        self.trust.records()
+    }
+}
+
+fn toml_string(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len() + 2);
+    encoded.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => encoded.push_str("\\\""),
+            '\\' => encoded.push_str("\\\\"),
+            '\n' => encoded.push_str("\\n"),
+            '\r' => encoded.push_str("\\r"),
+            '\t' => encoded.push_str("\\t"),
+            control if control.is_control() => {
+                encoded.push_str(&format!("\\u{:04X}", control as u32));
+            }
+            other => encoded.push(other),
+        }
+    }
+    encoded.push('"');
+    encoded
+}
+
+fn toml_string_array(values: impl IntoIterator<Item = String>) -> String {
+    let encoded: Vec<String> = values
+        .into_iter()
+        .map(|value| toml_string(&value))
+        .collect();
+    format!("[{}]", encoded.join(", "))
 }
 
 pub fn render_document(configuration: &EffectiveConfiguration) -> String {
@@ -394,8 +702,8 @@ pub fn render_document(configuration: &EffectiveConfiguration) -> String {
         configuration.budgets.max_repairs_per_candidate
     ));
     text.push_str(&format!(
-        "commit_policy = \"{}\"\n",
-        configuration.commit_policy.as_str()
+        "commit_policy = {}\n",
+        toml_string(configuration.commit_policy.as_str())
     ));
     text.push_str(&format!(
         "require_clean_repository = {}\n\n",
@@ -404,14 +712,14 @@ pub fn render_document(configuration: &EffectiveConfiguration) -> String {
 
     text.push_str("[agent]\n");
     text.push_str(&format!(
-        "driver = \"{}\"\n",
-        configuration.agent.driver.as_str()
+        "driver = {}\n",
+        toml_string(configuration.agent.driver.as_str())
     ));
     if let Some(model) = &configuration.agent.model {
-        text.push_str(&format!("model = \"{model}\"\n"));
+        text.push_str(&format!("model = {}\n", toml_string(model)));
     }
     if let Some(endpoint) = &configuration.agent.endpoint {
-        text.push_str(&format!("endpoint = \"{endpoint}\"\n"));
+        text.push_str(&format!("endpoint = {}\n", toml_string(endpoint)));
     }
     text.push_str(&format!("max_turns = {}\n", configuration.agent.max_turns));
     text.push_str(&format!(
@@ -419,14 +727,14 @@ pub fn render_document(configuration: &EffectiveConfiguration) -> String {
         configuration.agent.timeout.get()
     ));
     text.push_str(&format!(
-        "network = \"{}\"\n\n",
-        configuration.agent.network.as_str()
+        "network = {}\n\n",
+        toml_string(configuration.agent.network.as_str())
     ));
 
     text.push_str("[quality]\n");
     text.push_str(&format!(
-        "profile = \"{}\"\n",
-        configuration.quality.profile.as_str()
+        "profile = {}\n",
+        toml_string(configuration.quality.profile.as_str())
     ));
     if let Some(coverage) = configuration.quality.minimum_line_coverage {
         text.push_str(&format!("minimum_line_coverage = {coverage}\n"));
@@ -438,52 +746,41 @@ pub fn render_document(configuration: &EffectiveConfiguration) -> String {
 
     for command in &configuration.commands.commands {
         text.push_str("[[commands]]\n");
-        text.push_str(&format!("id = \"{}\"\n", command.id));
-        text.push_str(&format!("program = \"{}\"\n", command.program));
+        text.push_str(&format!("id = {}\n", toml_string(command.id.as_str())));
+        text.push_str(&format!("program = {}\n", toml_string(&command.program)));
         text.push_str(&format!(
-            "args = [{}]\n",
-            command
-                .args
-                .iter()
-                .map(|value| format!("\"{value}\""))
-                .collect::<Vec<_>>()
-                .join(", ")
+            "args = {}\n",
+            toml_string_array(command.args.iter().cloned())
         ));
-        text.push_str(&format!("kind = \"{}\"\n", command.kind.as_str()));
+        text.push_str(&format!("kind = {}\n", toml_string(command.kind.as_str())));
         text.push_str(&format!("timeout_seconds = {}\n", command.timeout.get()));
         text.push_str(&format!("required = {}\n", command.required));
         if command.report_format != ReportFormat::None {
             text.push_str(&format!(
-                "report_format = \"{}\"\n",
-                command.report_format.as_str()
+                "report_format = {}\n",
+                toml_string(command.report_format.as_str())
             ));
         }
         if let Some(path) = &command.report_path {
-            text.push_str(&format!("report_path = \"{path}\"\n"));
+            text.push_str(&format!("report_path = {}\n", toml_string(path)));
         }
         text.push('\n');
     }
 
     text.push_str("[git]\n");
     text.push_str(&format!(
-        "branch_prefix = \"{}\"\n",
-        configuration.git.branch_prefix
+        "branch_prefix = {}\n",
+        toml_string(&configuration.git.branch_prefix)
     ));
     text.push_str(&format!(
-        "author_name = \"{}\"\n\n",
-        configuration.git.author_name
+        "author_name = {}\n\n",
+        toml_string(&configuration.git.author_name)
     ));
 
     text.push_str("[policy]\n");
     text.push_str(&format!(
-        "protected_paths = [{}]\n",
-        configuration
-            .path_policy
-            .protected_patterns
-            .iter()
-            .map(|value| format!("\"{value}\""))
-            .collect::<Vec<_>>()
-            .join(", ")
+        "protected_paths = {}\n",
+        toml_string_array(configuration.path_policy.protected_patterns.iter().cloned())
     ));
     text
 }

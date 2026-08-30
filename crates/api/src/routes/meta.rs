@@ -55,11 +55,19 @@ pub async fn create_session(
             ApiError::unauthorised("a bootstrap token is required to establish a session")
         })?;
 
-    let session = state
-        .sessions
-        .exchange(&presented)
-        .await
-        .ok_or_else(|| ApiError::unauthorised("the bootstrap token was not accepted"))?;
+    let session =
+        state
+            .sessions
+            .exchange(&presented)
+            .await
+            .map_err(|rejection| match rejection {
+                crate::session::SessionRejection::RateLimited => ApiError::new(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "rate_limited",
+                    "too many session attempts were made, wait a moment before retrying",
+                ),
+                _ => ApiError::unauthorised("the bootstrap token was not accepted"),
+            })?;
 
     let mut response = Json(SessionResponse {
         csrf_token: session.csrf_token.clone(),

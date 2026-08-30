@@ -337,5 +337,66 @@ fn sample_configuration() -> heikas_application::configuration::EffectiveConfigu
         timeouts: NodeTimeouts::default(),
         environment_allowlist: Vec::new(),
         demonstration_mode: true,
+        repository_trust: Default::default(),
     }
+}
+
+#[tokio::test]
+async fn an_oversized_event_record_is_refused() {
+    let (_directory, layout) = layout();
+    let store = store(&layout);
+    let run_id = UuidIdentifierFactory.new_run_id();
+    store
+        .initialise(run_id, "# Task\n", &sample_configuration())
+        .await
+        .expect("the run initialises");
+
+    let outcome = store
+        .append(
+            run_id,
+            EventPayload::DiagnosticRecorded {
+                level: heikas_domain::event::DiagnosticLevel::Info,
+                code: "oversized".to_string(),
+                message: "a"
+                    .repeat(heikas_infrastructure::store::event_log::MAXIMUM_RECORD_BYTES + 1),
+                detail: None,
+            },
+        )
+        .await;
+    assert!(
+        outcome.is_err(),
+        "a record beyond the size limit must be refused rather than written"
+    );
+}
+
+#[tokio::test]
+async fn repeated_reads_reuse_the_verified_prefix() {
+    let (_directory, layout) = layout();
+    let store = store(&layout);
+    let run_id = UuidIdentifierFactory.new_run_id();
+    store
+        .initialise(run_id, "# Task\n", &sample_configuration())
+        .await
+        .expect("the run initialises");
+    store
+        .append(run_id, created_payload())
+        .await
+        .expect("the event appends");
+    for index in 0..25 {
+        store
+            .append(run_id, diagnostic(index))
+            .await
+            .expect("the event appends");
+    }
+
+    let first = store.read_range(run_id, 0, 5).await.expect("a page reads");
+    assert_eq!(first.len(), 5);
+    let all = store.read_after(run_id, 0).await.expect("the log reads");
+    assert_eq!(all.len(), 26);
+    let verification = store
+        .verify_chain(run_id)
+        .await
+        .expect("the chain verifies");
+    assert_eq!(verification.events_verified, 26);
+    assert!(!verification.quarantined_partial_record);
 }

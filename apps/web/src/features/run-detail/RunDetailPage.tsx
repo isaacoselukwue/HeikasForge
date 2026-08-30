@@ -197,8 +197,19 @@ export function RunDetailPage({ runId }: { runId: string }) {
       )}
 
       {exportRun.isSuccess && (
-        <p className="rounded-[var(--radius-medium)] border border-[var(--border-subtle)] bg-[var(--state-success-surface)] px-3 py-2 text-xs text-[var(--state-success)]">
-          Redacted evidence archive written to {exportRun.data.archive_path}
+        <p
+          className={
+            exportRun.data.redacted
+              ? "rounded-[var(--radius-medium)] border border-[var(--border-subtle)] bg-[var(--state-success-surface)] px-3 py-2 text-xs text-[var(--state-success)]"
+              : "rounded-[var(--radius-medium)] border border-[var(--border-subtle)] bg-[var(--state-warning-surface)] px-3 py-2 text-xs text-[var(--state-warning)]"
+          }
+        >
+          {exportRun.data.redacted
+            ? `Evidence archive written to ${exportRun.data.archive_path}. All ${String(exportRun.data.redacted_entries)} entries were redacted.`
+            : `Evidence archive written to ${exportRun.data.archive_path}. ${String(exportRun.data.unredactable_entries)} entries are not text and were archived without redaction.`}
+          {exportRun.data.excluded_sensitive_paths.length > 0
+            ? ` ${String(exportRun.data.excluded_sensitive_paths.length)} paths matching a sensitive pattern were excluded.`
+            : ""}
         </p>
       )}
 

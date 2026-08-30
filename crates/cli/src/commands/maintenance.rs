@@ -15,6 +15,9 @@ pub struct ExportOutcomeReport {
     pub byte_length: u64,
     pub entry_count: u64,
     pub redacted: bool,
+    pub redacted_entries: u64,
+    pub unredactable_entries: u64,
+    pub excluded_sensitive_paths: Vec<String>,
 }
 
 pub async fn export(
@@ -39,17 +42,33 @@ pub async fn export(
         archive_path: outcome.archive_path.display().to_string(),
         byte_length: outcome.byte_length,
         entry_count: outcome.entry_count,
-        redacted: outcome.redacted,
+        redacted: outcome.fully_redacted(),
+        redacted_entries: outcome.redacted_entries,
+        unredactable_entries: outcome.unredactable_entries,
+        excluded_sensitive_paths: outcome.excluded_sensitive_paths.clone(),
     };
     context.emit(&report, |palette| {
-        format!(
-            "{}\nArchive: {}\nEntries: {}\nBytes: {}\nRedacted: {}\n",
+        let mut text = format!(
+            "{}\nArchive: {}\nEntries: {}\nBytes: {}\nRedacted entries: {}\n",
             palette.heading("Evidence exported"),
             report.archive_path,
             report.entry_count,
             report.byte_length,
-            report.redacted
-        )
+            report.redacted_entries
+        );
+        if report.unredactable_entries > 0 {
+            text.push_str(&palette.warning(&format!(
+                "{} entries are not text, so they were archived without redaction.\n",
+                report.unredactable_entries
+            )));
+        }
+        if !report.excluded_sensitive_paths.is_empty() {
+            text.push_str(&palette.warning(&format!(
+                "{} worktree paths matched a sensitive pattern and were excluded.\n",
+                report.excluded_sensitive_paths.len()
+            )));
+        }
+        text
     });
     Ok(ExitCode::Success)
 }

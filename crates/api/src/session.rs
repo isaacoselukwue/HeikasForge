@@ -12,6 +12,8 @@ pub const BOOTSTRAP_HEADER: &str = "x-heikas-bootstrap";
 const SESSION_LIFETIME: Duration = Duration::from_secs(60 * 60 * 12);
 const MUTATION_WINDOW: Duration = Duration::from_secs(10);
 const MUTATION_ALLOWANCE: u32 = 40;
+const BOOTSTRAP_WINDOW: Duration = Duration::from_secs(60);
+const BOOTSTRAP_ALLOWANCE: u32 = 20;
 
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -22,9 +24,16 @@ pub struct Session {
     pub mutations_in_window: u32,
 }
 
+#[derive(Debug)]
+struct BootstrapAttempts {
+    window_started: Instant,
+    attempts: u32,
+}
+
 pub struct SessionManager {
     bootstrap_token: String,
     sessions: Mutex<HashMap<String, Session>>,
+    bootstrap_attempts: Mutex<BootstrapAttempts>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +62,10 @@ impl SessionManager {
         Self {
             bootstrap_token: random_token(),
             sessions: Mutex::new(HashMap::new()),
+            bootstrap_attempts: Mutex::new(BootstrapAttempts {
+                window_started: Instant::now(),
+                attempts: 0,
+            }),
         }
     }
 
@@ -60,9 +73,20 @@ impl SessionManager {
         &self.bootstrap_token
     }
 
-    pub async fn exchange(&self, presented: &str) -> Option<Session> {
+    pub async fn exchange(&self, presented: &str) -> Result<Session, SessionRejection> {
+        {
+            let mut attempts = self.bootstrap_attempts.lock().await;
+            if attempts.window_started.elapsed() > BOOTSTRAP_WINDOW {
+                attempts.window_started = Instant::now();
+                attempts.attempts = 0;
+            }
+            attempts.attempts += 1;
+            if attempts.attempts > BOOTSTRAP_ALLOWANCE {
+                return Err(SessionRejection::RateLimited);
+            }
+        }
         if !constant_time_equals(presented.as_bytes(), self.bootstrap_token.as_bytes()) {
-            return None;
+            return Err(SessionRejection::Missing);
         }
         let session = Session {
             id: random_token(),
@@ -74,7 +98,7 @@ impl SessionManager {
         let mut guard = self.sessions.lock().await;
         guard.retain(|_, existing| existing.created_at.elapsed() < SESSION_LIFETIME);
         guard.insert(session.id.clone(), session.clone());
-        Some(session)
+        Ok(session)
     }
 
     pub async fn validate(
@@ -127,12 +151,9 @@ fn random_token() -> String {
 }
 
 fn constant_time_equals(left: &[u8], right: &[u8]) -> bool {
+    use subtle::ConstantTimeEq;
     if left.len() != right.len() {
         return false;
     }
-    let mut difference = 0u8;
-    for (a, b) in left.iter().zip(right.iter()) {
-        difference |= a ^ b;
-    }
-    difference == 0
+    left.ct_eq(right).into()
 }

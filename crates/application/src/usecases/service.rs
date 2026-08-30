@@ -471,7 +471,7 @@ impl ApplicationService {
             vec![EventPayload::RunExported {
                 archive_relative_path: outcome.archive_path.display().to_string(),
                 byte_length: outcome.byte_length,
-                redacted: outcome.redacted,
+                redacted: outcome.fully_redacted(),
             }],
         )
         .await?;

@@ -454,6 +454,7 @@ impl ToolExecutor {
             args,
             working_directory: self.worktree.clone(),
             environment: Vec::new(),
+            stdin: None,
             timeout_seconds: 60,
             max_output_bytes: 262_144,
             label: format!("inspect_git:{mode}"),
@@ -535,6 +536,63 @@ impl ToolExecutor {
         ))
     }
 
+    async fn enumerate_patch(
+        &self,
+        patch_file: &Path,
+        reverse: bool,
+    ) -> ApplicationResult<Result<Vec<String>, String>> {
+        let mut args = vec![
+            "--no-pager".to_string(),
+            "apply".to_string(),
+            "--numstat".to_string(),
+            "-z".to_string(),
+        ];
+        if reverse {
+            args.push("--reverse".to_string());
+        }
+        args.push(patch_file.display().to_string());
+        let request = ProcessRequest {
+            program: "git".to_string(),
+            args,
+            working_directory: self.worktree.clone(),
+            environment: Vec::new(),
+            stdin: None,
+            timeout_seconds: 60,
+            max_output_bytes: 262_144,
+            label: "apply_patch:enumerate".to_string(),
+        };
+        let outcome = self
+            .processes
+            .run(request, self.cancellation.clone())
+            .await?;
+        if !outcome.succeeded() {
+            return Ok(Err(format!(
+                "the patch could not be read: {}",
+                outcome.stderr_text().trim()
+            )));
+        }
+        Ok(Ok(parse_numstat_paths(&outcome.stdout)))
+    }
+
+    async fn affected_patch_paths(
+        &self,
+        patch_file: &Path,
+    ) -> ApplicationResult<Result<Vec<String>, String>> {
+        let forward = match self.enumerate_patch(patch_file, false).await? {
+            Ok(paths) => paths,
+            Err(reason) => return Ok(Err(reason)),
+        };
+        let reverse: Vec<String> = self
+            .enumerate_patch(patch_file, true)
+            .await?
+            .unwrap_or_default();
+        let mut affected = forward;
+        affected.extend(reverse);
+        affected.sort();
+        affected.dedup();
+        Ok(Ok(affected))
+    }
+
     async fn apply_patch(&self, arguments: &Value) -> ApplicationResult<ToolExecution> {
         if let Some(rejection) = self.require(self.policy.allow_patch, "apply_patch") {
             return Ok(rejection);
@@ -542,21 +600,10 @@ impl ToolExecutor {
         let Some(patch) = arguments.get("patch").and_then(Value::as_str) else {
             return Ok(rejected("the `patch` argument is required".to_string()));
         };
-        for line in patch.lines() {
-            let Some(rest) = line
-                .strip_prefix("+++ b/")
-                .or_else(|| line.strip_prefix("--- a/"))
-            else {
-                continue;
-            };
-            if let Err(error) = confine(
-                &self.worktree,
-                rest.trim(),
-                PathAccess::Write,
-                &self.policy.path_policy,
-            ) {
-                return Ok(rejected(error.to_string()));
-            }
+        if let Some(mode) = declares_symbolic_link(patch) {
+            return Ok(rejected(format!(
+                "a patch may not create or alter a symbolic link (file mode {mode})"
+            )));
         }
         let directory = tempfile::Builder::new()
             .prefix("heikas-agent-patch-")
@@ -565,6 +612,25 @@ impl ToolExecutor {
         let path = directory.path().join("change.patch");
         std::fs::write(&path, patch)
             .map_err(|error| crate::atomic::storage(&path, "write", error))?;
+        let affected = match self.affected_patch_paths(&path).await? {
+            Ok(paths) => paths,
+            Err(reason) => return Ok(rejected(reason)),
+        };
+        if affected.is_empty() {
+            return Ok(rejected(
+                "the patch does not describe any file change".to_string(),
+            ));
+        }
+        for candidate in &affected {
+            if let Err(error) = confine(
+                &self.worktree,
+                candidate,
+                PathAccess::Write,
+                &self.policy.path_policy,
+            ) {
+                return Ok(rejected(error.to_string()));
+            }
+        }
         let request = ProcessRequest {
             program: "git".to_string(),
             args: vec![
@@ -575,6 +641,7 @@ impl ToolExecutor {
             ],
             working_directory: self.worktree.clone(),
             environment: Vec::new(),
+            stdin: None,
             timeout_seconds: 120,
             max_output_bytes: 262_144,
             label: "apply_patch".to_string(),
@@ -673,4 +740,44 @@ fn tail(value: &str, limit: usize) -> String {
     }
     let start = value.len() - limit;
     format!("[output truncated]\n{}", &value[start..])
+}
+
+fn parse_numstat_paths(output: &[u8]) -> Vec<String> {
+    let mut paths = Vec::new();
+    for record in output.split(|byte| *byte == 0) {
+        if record.is_empty() {
+            continue;
+        }
+        let text = String::from_utf8_lossy(record);
+        let mut fields = text.splitn(3, '\t');
+        let (Some(_added), Some(_deleted), Some(path)) =
+            (fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        let trimmed = path.trim_matches(|character| character == '\n' || character == '\r');
+        if !trimmed.is_empty() {
+            paths.push(trimmed.to_string());
+        }
+    }
+    paths
+}
+
+fn declares_symbolic_link(patch: &str) -> Option<&str> {
+    for line in patch.lines() {
+        let trimmed = line.trim_end();
+        for prefix in [
+            "new file mode ",
+            "new mode ",
+            "old mode ",
+            "deleted file mode ",
+        ] {
+            if let Some(mode) = trimmed.strip_prefix(prefix) {
+                if mode.trim() == "120000" {
+                    return Some("120000");
+                }
+            }
+        }
+    }
+    None
 }

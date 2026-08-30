@@ -10,6 +10,7 @@ use heikas_application::error::{ApplicationError, ApplicationResult};
 use heikas_application::model::attempt::{AttemptEvidence, AttemptKey, StoredArtifact};
 use heikas_application::model::run_summary::RunHeader;
 use heikas_application::ports::clock::{Clock, IdentifierFactory};
+use heikas_application::ports::observability::Redactor;
 use heikas_application::ports::store::{
     CandidateEvidenceStore, ChainVerification, EventStore, EvidenceStore, PlanStore,
     ProjectionStore, RunCatalogue,
@@ -31,6 +32,7 @@ use crate::atomic::{
     temporary_sibling, write_atomic, write_atomic_json,
 };
 use crate::layout::StoreLayout;
+use crate::redaction::{redact_text_leaves, PatternRedactor};
 use crate::store::event_log::EventLogFile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +60,8 @@ pub struct FileRunStore {
     clock: Arc<dyn Clock>,
     identifiers: Arc<dyn IdentifierFactory>,
     logs: Mutex<HashMap<RunId, Arc<EventLogFile>>>,
+    redactors: Mutex<HashMap<RunId, Arc<dyn Redactor>>>,
+    default_redactor: Arc<dyn Redactor>,
 }
 
 impl FileRunStore {
@@ -71,7 +75,35 @@ impl FileRunStore {
             clock,
             identifiers,
             logs: Mutex::new(HashMap::new()),
+            redactors: Mutex::new(HashMap::new()),
+            default_redactor: Arc::new(PatternRedactor::without_environment()),
         }
+    }
+
+    async fn redactor_for(&self, run_id: RunId) -> Arc<dyn Redactor> {
+        let mut guard = self.redactors.lock().await;
+        if let Some(existing) = guard.get(&run_id) {
+            return Arc::clone(existing);
+        }
+        let redactor: Arc<dyn Redactor> = match self.descriptor(run_id) {
+            Ok(descriptor) => Arc::new(PatternRedactor::for_configuration(
+                &descriptor.configuration.redaction,
+            )),
+            Err(_) => Arc::clone(&self.default_redactor),
+        };
+        guard.insert(run_id, Arc::clone(&redactor));
+        redactor
+    }
+
+    async fn redact_serialisable<T: Serialize>(
+        &self,
+        run_id: RunId,
+        value: &T,
+    ) -> ApplicationResult<serde_json::Value> {
+        let redactor = self.redactor_for(run_id).await;
+        let encoded = serde_json::to_value(value)
+            .map_err(|error| ApplicationError::Serialisation(error.to_string()))?;
+        Ok(redact_text_leaves(redactor.as_ref(), &encoded))
     }
 
     pub fn layout(&self) -> &StoreLayout {
@@ -114,6 +146,16 @@ impl FileRunStore {
     fn artifact_index(&self, run_id: RunId) -> ApplicationResult<ArtifactIndex> {
         Ok(read_json::<ArtifactIndex>(&self.layout.artifact_index(run_id))?.unwrap_or_default())
     }
+
+    async fn redact_payload(
+        &self,
+        run_id: RunId,
+        payload: EventPayload,
+    ) -> ApplicationResult<EventPayload> {
+        let redacted = self.redact_serialisable(run_id, &payload).await?;
+        serde_json::from_value(redacted)
+            .map_err(|error| ApplicationError::Serialisation(error.to_string()))
+    }
 }
 
 #[async_trait]
@@ -124,11 +166,12 @@ impl EventStore for FileRunStore {
         payload: EventPayload,
     ) -> ApplicationResult<DurableEvent> {
         let log = self.log_for(run_id).await;
+        let redacted = self.redact_payload(run_id, payload).await?;
         log.append(
             run_id,
             self.identifiers.new_event_id(),
             self.clock.now(),
-            payload,
+            redacted,
         )
         .await
     }
@@ -326,15 +369,31 @@ impl EvidenceStore for FileRunStore {
                 destination.display()
             )));
         }
+        let redactor = self.redactor_for(run_id).await;
         let staging = temporary_sibling(&destination);
         ensure_directory(&staging)?;
-        write_atomic_json(&staging.join("input.json"), &evidence.input)?;
+        write_atomic_json(
+            &staging.join("input.json"),
+            &redact_text_leaves(redactor.as_ref(), &evidence.input),
+        )?;
         if let Some(invocation) = &evidence.invocation {
-            write_atomic_json(&staging.join("invocation.json"), invocation)?;
+            write_atomic_json(
+                &staging.join("invocation.json"),
+                &redact_text_leaves(redactor.as_ref(), invocation),
+            )?;
         }
-        write_atomic_json(&staging.join("result.json"), result)?;
-        write_atomic(&staging.join("stdout.log"), &evidence.stdout)?;
-        write_atomic(&staging.join("stderr.log"), &evidence.stderr)?;
+        write_atomic_json(
+            &staging.join("result.json"),
+            &self.redact_serialisable(run_id, result).await?,
+        )?;
+        write_atomic(
+            &staging.join("stdout.log"),
+            &redactor.redact_bytes(&evidence.stdout),
+        )?;
+        write_atomic(
+            &staging.join("stderr.log"),
+            &redactor.redact_bytes(&evidence.stderr),
+        )?;
         rename_directory_into_place(&staging, &destination)
     }
 
@@ -508,11 +567,12 @@ impl CandidateEvidenceStore for FileRunStore {
         evidence: &TestEvidence,
     ) -> ApplicationResult<()> {
         let root = self.evidence_root(run_id, candidate).join("reports");
+        let redacted = self.redact_serialisable(run_id, evidence).await?;
         write_atomic_json(
             &root.join(format!("tests-attempt-{attempt}.json")),
-            evidence,
+            &redacted,
         )?;
-        write_atomic_json(&root.join("tests-latest.json"), evidence)
+        write_atomic_json(&root.join("tests-latest.json"), &redacted)
     }
 
     async fn read_test_evidence(
@@ -536,8 +596,12 @@ impl CandidateEvidenceStore for FileRunStore {
         review: &AggregatedReview,
     ) -> ApplicationResult<()> {
         let root = self.evidence_root(run_id, candidate).join("reports");
-        write_atomic_json(&root.join(format!("review-attempt-{attempt}.json")), review)?;
-        write_atomic_json(&root.join("review-latest.json"), review)
+        let redacted = self.redact_serialisable(run_id, review).await?;
+        write_atomic_json(
+            &root.join(format!("review-attempt-{attempt}.json")),
+            &redacted,
+        )?;
+        write_atomic_json(&root.join("review-latest.json"), &redacted)
     }
 
     async fn read_review(

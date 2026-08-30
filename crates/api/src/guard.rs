@@ -15,11 +15,18 @@ pub async fn guard(
     next: Next,
 ) -> Result<Response, ApiError> {
     let path = request.uri().path().to_string();
-    if !path.starts_with("/api/") || OPEN_PATHS.contains(&path.as_str()) {
+    let headers = request.headers().clone();
+    verify_host(&state, &headers).await?;
+    if !path.starts_with("/api/") {
         return Ok(next.run(request).await);
     }
     let mutating = !matches!(request.method(), &Method::GET | &Method::HEAD);
-    let headers = request.headers().clone();
+    if OPEN_PATHS.contains(&path.as_str()) {
+        if mutating {
+            verify_origin(&state, &headers).await?;
+        }
+        return Ok(next.run(request).await);
+    }
 
     if mutating {
         verify_origin(&state, &headers).await?;
@@ -51,6 +58,61 @@ pub async fn guard(
     let mut request = request;
     request.extensions_mut().insert(session);
     Ok(next.run(request).await)
+}
+
+async fn verify_host(state: &ApiState, headers: &HeaderMap) -> Result<(), ApiError> {
+    let Some(expected) = state.expected_origin().await else {
+        return Ok(());
+    };
+    let Some(expected_authority) = expected.split("://").nth(1) else {
+        return Ok(());
+    };
+    let presented = headers
+        .get(axum::http::header::HOST)
+        .and_then(|value| value.to_str().ok());
+    match presented {
+        Some(host) if authority_matches(host, expected_authority) => Ok(()),
+        Some(host) => Err(ApiError::forbidden(format!(
+            "the host `{host}` is not the address this interface is serving"
+        ))),
+        None => Ok(()),
+    }
+}
+
+fn authority_matches(presented: &str, expected: &str) -> bool {
+    if presented.eq_ignore_ascii_case(expected) {
+        return true;
+    }
+    let Some((presented_host, presented_port)) = split_authority(presented) else {
+        return false;
+    };
+    let Some((expected_host, expected_port)) = split_authority(expected) else {
+        return false;
+    };
+    presented_port == expected_port
+        && is_loopback_authority(&presented_host)
+        && is_loopback_authority(&expected_host)
+}
+
+fn split_authority(authority: &str) -> Option<(String, String)> {
+    if let Some(rest) = authority.strip_prefix('[') {
+        let (host, remainder) = rest.split_once(']')?;
+        let port = remainder.strip_prefix(':').unwrap_or("80");
+        return Some((host.to_ascii_lowercase(), port.to_string()));
+    }
+    match authority.rsplit_once(':') {
+        Some((host, port)) => Some((host.to_ascii_lowercase(), port.to_string())),
+        None => Some((authority.to_ascii_lowercase(), "80".to_string())),
+    }
+}
+
+fn is_loopback_authority(host: &str) -> bool {
+    if host == "localhost" || host.ends_with(".localhost") {
+        return true;
+    }
+    host.parse::<std::net::IpAddr>()
+        .map(|address| address.is_loopback())
+        .unwrap_or(false)
 }
 
 async fn verify_origin(state: &ApiState, headers: &HeaderMap) -> Result<(), ApiError> {

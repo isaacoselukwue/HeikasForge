@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use heikas_application::configuration::{AgentConfiguration, AgentDriverKind};
+use heikas_application::configuration::{AgentConfiguration, AgentDriverKind, NetworkPolicy};
 use heikas_application::error::{ApplicationError, ApplicationResult};
 use heikas_application::ports::agent::{
     AgentCapabilities, AgentDriver, AgentExitReason, AgentInvocation, AgentOutcome, AgentToolCall,
@@ -33,6 +33,9 @@ impl LocalModelAgentDriver {
         configuration: AgentConfiguration,
         processes: Arc<dyn ProcessRunner>,
     ) -> ApplicationResult<Self> {
+        if let Some(endpoint) = &configuration.endpoint {
+            enforce_network_policy(endpoint, configuration.network)?;
+        }
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(u64::from(configuration.timeout.get())))
             .build()
@@ -467,5 +470,46 @@ fn record_usage(response: &Value, usage: &mut AgentUsage) {
         .and_then(Value::as_u64)
     {
         usage.output_tokens = Some(usage.output_tokens.unwrap_or(0) + output);
+    }
+}
+
+pub fn enforce_network_policy(endpoint: &str, policy: NetworkPolicy) -> ApplicationResult<()> {
+    let parsed = reqwest::Url::parse(endpoint).map_err(|error| {
+        ApplicationError::InvalidConfiguration(format!(
+            "the model endpoint `{endpoint}` is not a valid address: {error}"
+        ))
+    })?;
+    match policy {
+        NetworkPolicy::Disabled => Err(ApplicationError::InvalidConfiguration(format!(
+            "the network policy is `{}`, so the model endpoint `{endpoint}` may not be contacted",
+            policy.as_str()
+        ))),
+        NetworkPolicy::LoopbackOnly => {
+            if is_loopback_host(&parsed) {
+                Ok(())
+            } else {
+                Err(ApplicationError::InvalidConfiguration(format!(
+                    "the network policy is `{}`, so the model endpoint must resolve to this machine, but `{endpoint}` does not. Set `agent.network` to `approved-endpoints` in your own user configuration to reach a remote model.",
+                    policy.as_str()
+                )))
+            }
+        }
+        NetworkPolicy::ApprovedEndpoints => Ok(()),
+    }
+}
+
+fn is_loopback_host(url: &reqwest::Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let lowered = host
+        .trim_matches(|character| character == '[' || character == ']')
+        .to_ascii_lowercase();
+    if lowered == "localhost" || lowered.ends_with(".localhost") {
+        return true;
+    }
+    match lowered.parse::<std::net::IpAddr>() {
+        Ok(address) => address.is_loopback(),
+        Err(_) => false,
     }
 }

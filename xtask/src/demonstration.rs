@@ -150,6 +150,14 @@ pub fn execute(options: &DemonstrationOptions) -> TaskResult<DemonstrationOutcom
     let repository_argument = repository.display().to_string();
     let task_file = repository.join("TASK.md").display().to_string();
 
+    eprintln!("Trusting the demonstration repository configuration");
+    invoke(
+        &program,
+        &["--json", "trust", &repository_argument],
+        &root,
+        &environment,
+    )?;
+
     eprintln!("Creating the demonstration run");
     let created = invoke(
         &program,

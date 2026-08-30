@@ -14,6 +14,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 blake3 = { workspace = true }
+globset = { workspace = true }
 time = { workspace = true }
 schemars = { workspace = true }
 

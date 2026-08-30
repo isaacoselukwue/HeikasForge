@@ -188,6 +188,17 @@ pub trait PatternMatcher {
     fn matches(&self, pattern: &str, path: &str) -> bool;
 }
 
+pub struct GlobPatternMatcher;
+
+impl PatternMatcher for GlobPatternMatcher {
+    fn matches(&self, pattern: &str, path: &str) -> bool {
+        match globset::Glob::new(pattern) {
+            Ok(glob) => glob.compile_matcher().is_match(path),
+            Err(_) => pattern == path,
+        }
+    }
+}
+
 pub fn evaluate_path<M: PatternMatcher>(
     policy: &PathPolicy,
     matcher: &M,

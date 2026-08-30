@@ -16,7 +16,3 @@ docs/media/frames/
 *.profraw
 .DS_Store
 Thumbs.db
-
-CLAUDE.md
-spec.md
-apps/web/tests/.runtime.json

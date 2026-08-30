@@ -366,3 +366,194 @@ fn redacting_binary_content_leaves_it_unchanged() {
     let bytes = vec![0u8, 159, 146, 150, 255];
     assert_eq!(redactor.redact_bytes(&bytes), bytes);
 }
+
+#[tokio::test]
+async fn a_patch_renaming_a_file_into_a_protected_path_is_refused() {
+    let directory = worktree();
+    std::fs::write(directory.path().join("tool.txt"), "hello\n").expect("the file writes");
+    let executor = executor(
+        &directory,
+        ToolPolicy::editing(PathPolicy::default(), Vec::new(), 40),
+        Vec::new(),
+    );
+    let patch = concat!(
+        "diff --git a/tool.txt b/.github/workflows/release.yml\n",
+        "similarity index 100%\n",
+        "rename from tool.txt\n",
+        "rename to .github/workflows/release.yml\n",
+    );
+    let outcome = executor
+        .execute("apply_patch", &json!({ "patch": patch }))
+        .await
+        .expect("the tool responds");
+    assert!(
+        !outcome.accepted,
+        "a rename into a protected path must be refused"
+    );
+    assert!(
+        !directory
+            .path()
+            .join(".github/workflows/release.yml")
+            .exists(),
+        "the refused rename must not reach the worktree"
+    );
+}
+
+#[tokio::test]
+async fn a_patch_changing_the_mode_of_a_protected_path_is_refused() {
+    let directory = worktree();
+    std::fs::create_dir_all(directory.path().join(".github").join("workflows"))
+        .expect("the directory creates");
+    std::fs::write(
+        directory.path().join(".github/workflows/ci.yml"),
+        "on: push\n",
+    )
+    .expect("the file writes");
+    let executor = executor(
+        &directory,
+        ToolPolicy::editing(PathPolicy::default(), Vec::new(), 40),
+        Vec::new(),
+    );
+    let patch = concat!(
+        "diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml\n",
+        "old mode 100644\n",
+        "new mode 100755\n",
+    );
+    let outcome = executor
+        .execute("apply_patch", &json!({ "patch": patch }))
+        .await
+        .expect("the tool responds");
+    assert!(
+        !outcome.accepted,
+        "a mode change on a protected path must be refused"
+    );
+}
+
+#[tokio::test]
+async fn a_patch_creating_a_symbolic_link_is_refused() {
+    let directory = worktree();
+    let executor = executor(
+        &directory,
+        ToolPolicy::editing(PathPolicy::default(), Vec::new(), 40),
+        Vec::new(),
+    );
+    let patch = concat!(
+        "diff --git a/link b/link\n",
+        "new file mode 120000\n",
+        "index 0000000..1234567\n",
+        "--- /dev/null\n",
+        "+++ b/link\n",
+        "@@ -0,0 +1 @@\n",
+        "+/etc/passwd\n",
+        "\\ No newline at end of file\n",
+    );
+    let outcome = executor
+        .execute("apply_patch", &json!({ "patch": patch }))
+        .await
+        .expect("the tool responds");
+    assert!(!outcome.accepted, "a symbolic link must not be created");
+    assert!(!directory.path().join("link").exists());
+}
+
+#[tokio::test]
+async fn an_ordinary_patch_still_applies() {
+    let directory = worktree();
+    let executor = executor(
+        &directory,
+        ToolPolicy::editing(PathPolicy::default(), Vec::new(), 40),
+        Vec::new(),
+    );
+    let patch = concat!(
+        "--- a/src/main.rs\n",
+        "+++ b/src/main.rs\n",
+        "@@ -1 +1 @@\n",
+        "-fn main() {}\n",
+        "+fn main() { println!(\"hello\"); }\n",
+    );
+    let outcome = executor
+        .execute("apply_patch", &json!({ "patch": patch }))
+        .await
+        .expect("the tool responds");
+    assert!(outcome.accepted, "a permitted patch must still apply");
+    let updated = std::fs::read_to_string(directory.path().join("src").join("main.rs"))
+        .expect("the file reads");
+    assert!(updated.contains("hello"));
+}
+
+#[test]
+fn a_file_rewritten_in_place_is_still_detected_as_changed() {
+    let directory = TempDir::new().expect("a temporary worktree");
+    let path = directory.path().join("module.py");
+    std::fs::write(&path, "value = 1\n").expect("the file writes");
+    let before = heikas_infrastructure::agent::changes::observe_changed_paths(directory.path())
+        .expect("the fingerprints are taken");
+
+    let metadata = std::fs::metadata(&path).expect("the metadata reads");
+    let modified = metadata.modified().expect("a modification time");
+    std::fs::write(&path, "value = 2\n").expect("the file rewrites");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .expect("the file opens");
+    file.set_modified(modified).expect("the time is restored");
+
+    let after = heikas_infrastructure::agent::changes::observe_changed_paths(directory.path())
+        .expect("the fingerprints are taken");
+    let changed = heikas_infrastructure::agent::changes::difference(&before, &after);
+    assert_eq!(
+        changed,
+        vec!["module.py".to_string()],
+        "an equal length rewrite with a restored modification time must still be detected"
+    );
+}
+
+#[test]
+fn a_restriction_bypass_argument_is_refused() {
+    for argument in [
+        "--dangerously-skip-permissions",
+        "--permission-mode=bypassPermissions",
+        "--sandbox",
+        "--yolo",
+    ] {
+        let outcome = heikas_infrastructure::agent::external::validate_extra_arguments(&[
+            argument.to_string()
+        ]);
+        assert!(
+            outcome.is_err(),
+            "`{argument}` must not be accepted as an extra argument"
+        );
+    }
+    assert!(
+        heikas_infrastructure::agent::external::validate_extra_arguments(
+            &["--verbose".to_string()]
+        )
+        .is_ok()
+    );
+}
+
+#[test]
+fn a_non_loopback_model_endpoint_is_refused_by_the_default_network_policy() {
+    use heikas_application::configuration::NetworkPolicy;
+    use heikas_infrastructure::agent::local::enforce_network_policy;
+
+    assert!(
+        enforce_network_policy("http://127.0.0.1:11434/v1", NetworkPolicy::LoopbackOnly).is_ok()
+    );
+    assert!(
+        enforce_network_policy("http://localhost:11434/v1", NetworkPolicy::LoopbackOnly).is_ok()
+    );
+    assert!(
+        enforce_network_policy("http://evil.example/v1", NetworkPolicy::LoopbackOnly).is_err(),
+        "the default policy must refuse a remote model endpoint"
+    );
+    assert!(
+        enforce_network_policy("http://169.254.169.254/latest", NetworkPolicy::LoopbackOnly)
+            .is_err(),
+        "the default policy must refuse a link local endpoint"
+    );
+    assert!(enforce_network_policy("http://evil.example/v1", NetworkPolicy::Disabled).is_err());
+    assert!(
+        enforce_network_policy("http://models.example/v1", NetworkPolicy::ApprovedEndpoints)
+            .is_ok()
+    );
+}

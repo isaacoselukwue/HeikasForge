@@ -4,6 +4,9 @@ use heikas_domain::event::EventPayload;
 use heikas_domain::failure::{FailureClass, NodeFailure};
 use heikas_domain::identity::BranchName;
 use heikas_domain::node::StatePatch;
+use heikas_domain::path_policy::{
+    evaluate_path, GlobPatternMatcher, PathAccess, RelativeWorkspacePath,
+};
 use heikas_domain::run::RunStatus;
 use serde_json::json;
 
@@ -59,18 +62,18 @@ pub async fn execute(context: &NodeContext<'_>) -> ApplicationResult<NodeOutput>
     }
 
     for path in &changed_paths {
-        let relative = heikas_domain::path_policy::RelativeWorkspacePath::parse(path)?;
-        if configuration
-            .path_policy
-            .protected_patterns
-            .iter()
-            .any(|pattern| simple_glob_match(pattern, relative.as_str()))
-        {
+        let relative = RelativeWorkspacePath::parse(path)?;
+        if let Err(violation) = evaluate_path(
+            &configuration.path_policy,
+            &GlobPatternMatcher,
+            &relative,
+            PathAccess::Write,
+        ) {
             return Ok(NodeOutput::failed(
                 NodeFailure::new(
                     FailureClass::PolicyViolation,
                     "protected_path_in_commit",
-                    format!("the integration diff modifies the protected path `{path}`"),
+                    format!("the integration diff may not include `{path}`: {violation}"),
                 ),
                 None,
             )
@@ -182,14 +185,4 @@ fn commit_body(context: &NodeContext<'_>, changed_paths: &[String]) -> String {
         body.push_str(&format!("\nApproved plan version {}.\n", plan.version));
     }
     body
-}
-
-fn simple_glob_match(pattern: &str, path: &str) -> bool {
-    if let Some(prefix) = pattern.strip_suffix("/**") {
-        return path == prefix || path.starts_with(&format!("{prefix}/"));
-    }
-    if let Some(suffix) = pattern.strip_prefix("**/") {
-        return path == suffix || path.ends_with(&format!("/{suffix}"));
-    }
-    pattern == path
 }

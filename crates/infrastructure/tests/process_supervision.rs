@@ -20,6 +20,7 @@ fn request(program: &str, arguments: &[&str], directory: &std::path::Path) -> Pr
         args: arguments.iter().map(|value| (*value).to_string()).collect(),
         working_directory: directory.to_path_buf(),
         environment: Vec::new(),
+        stdin: None,
         timeout_seconds: 30,
         max_output_bytes: 65_536,
         label: "test".to_string(),

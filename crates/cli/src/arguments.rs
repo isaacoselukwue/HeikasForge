@@ -199,6 +199,12 @@ pub enum Command {
         demonstration: bool,
         #[arg(long, hide = true, help = "Bind every interface, for development only")]
         unsafe_bind_all_interfaces: bool,
+        #[arg(
+            long,
+            hide = true,
+            help = "The origin browsers will use, required when binding every interface"
+        )]
+        public_origin: Option<String>,
     },
 
     #[command(about = "Remove worktrees while preserving evidence")]
@@ -215,6 +221,22 @@ pub enum Command {
     InternalReadme {
         #[arg(default_value = ".")]
         path: PathBuf,
+    },
+
+    #[command(about = "Decide whether a repository's own configuration may name executables")]
+    Trust {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        #[arg(
+            long,
+            help = "Withdraw trust from this repository instead of granting it"
+        )]
+        revoke: bool,
+        #[arg(
+            long,
+            help = "List every repository configuration that is currently trusted"
+        )]
+        list: bool,
     },
 
     #[command(about = "Run the repository conformance checks")]

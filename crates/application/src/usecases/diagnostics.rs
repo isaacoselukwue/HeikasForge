@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::configuration::{RepositoryTrustState, WithheldReason};
 use crate::error::ApplicationResult;
 use crate::model::doctor::{AdapterStatus, DoctorCheck, DoctorReport};
 use crate::usecases::service::ApplicationService;
@@ -178,6 +179,61 @@ pub async fn diagnose(
     };
 
     if let Some(configuration) = &configuration {
+        let trust = &configuration.repository_trust;
+        match trust.state {
+            RepositoryTrustState::NoRepositoryConfiguration => {
+                checks.push(DoctorCheck::passed(
+                    "repository-trust",
+                    "Configuration",
+                    "Repository configuration trust",
+                    "the repository declares no configuration, so only your own settings apply",
+                ));
+            }
+            RepositoryTrustState::Trusted => {
+                checks.push(DoctorCheck::passed(
+                    "repository-trust",
+                    "Configuration",
+                    "Repository configuration trust",
+                    format!(
+                        "the repository configuration is trusted at digest {}",
+                        trust
+                            .configuration_digest
+                            .as_ref()
+                            .map(|digest| digest.short().to_string())
+                            .unwrap_or_default()
+                    ),
+                ));
+            }
+            RepositoryTrustState::Untrusted => {
+                checks.push(DoctorCheck::warning(
+                    "repository-trust",
+                    "Configuration",
+                    "Repository configuration trust",
+                    "the repository configuration has not been trusted, so the settings that name executables were withheld",
+                    "Read `.heikas/forge.toml`, then run `heikas trust <repository>` if you accept the commands it declares.",
+                ));
+            }
+        }
+        for withheld in &trust.withheld {
+            checks.push(DoctorCheck::warning(
+                &format!("repository-trust-{}", withheld.setting.replace('.', "-")),
+                "Configuration",
+                &format!("Withheld setting `{}`", withheld.setting),
+                withheld.reason.explanation(),
+                match withheld.reason {
+                    WithheldReason::RequiresRepositoryTrust => {
+                        "Run `heikas trust <repository>` after reviewing `.heikas/forge.toml`."
+                    }
+                    WithheldReason::UserConfigurationOnly => {
+                        "Move the setting into your own user configuration if you intend it."
+                    }
+                    WithheldReason::WouldWeakenPolicy => {
+                        "Relax the setting in your own user configuration if you intend it."
+                    }
+                },
+            ));
+        }
+
         match configuration.validate() {
             Ok(()) => checks.push(DoctorCheck::passed(
                 "configuration",

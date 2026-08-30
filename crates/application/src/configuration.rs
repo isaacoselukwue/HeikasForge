@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use heikas_domain::budget::{CandidateCount, QualityProfile, RunBudgets};
-use heikas_domain::clock::TimeoutSeconds;
+use heikas_domain::clock::{TimeoutSeconds, Timestamp};
 use heikas_domain::command::{
     CommandCatalogue, CommandKind, CommandSpecification, ReportFormat,
     MAXIMUM_COMMAND_TIMEOUT_SECONDS,
@@ -18,6 +18,118 @@ pub const CONFIGURATION_SCHEMA_VERSION: u32 = 1;
 pub const REPOSITORY_CONFIGURATION_RELATIVE_PATH: &str = ".heikas/forge.toml";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigurationAuthority {
+    UserConfiguration,
+    Repository,
+}
+
+impl ConfigurationAuthority {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ConfigurationAuthority::UserConfiguration => "user_configuration",
+            ConfigurationAuthority::Repository => "repository",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum RepositoryTrustState {
+    NoRepositoryConfiguration,
+    Trusted,
+    Untrusted,
+}
+
+impl RepositoryTrustState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RepositoryTrustState::NoRepositoryConfiguration => "no_repository_configuration",
+            RepositoryTrustState::Trusted => "trusted",
+            RepositoryTrustState::Untrusted => "untrusted",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            RepositoryTrustState::NoRepositoryConfiguration => {
+                "the repository declares no configuration"
+            }
+            RepositoryTrustState::Trusted => "the repository configuration is trusted",
+            RepositoryTrustState::Untrusted => "the repository configuration is not trusted",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum WithheldReason {
+    UserConfigurationOnly,
+    RequiresRepositoryTrust,
+    WouldWeakenPolicy,
+}
+
+impl WithheldReason {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WithheldReason::UserConfigurationOnly => "user_configuration_only",
+            WithheldReason::RequiresRepositoryTrust => "requires_repository_trust",
+            WithheldReason::WouldWeakenPolicy => "would_weaken_policy",
+        }
+    }
+
+    pub fn explanation(&self) -> &'static str {
+        match self {
+            WithheldReason::UserConfigurationOnly => {
+                "only your own user configuration may set this, because a repository could otherwise redirect your credentials or authorship"
+            }
+            WithheldReason::RequiresRepositoryTrust => {
+                "this names an executable or its arguments, so it is honoured only after you trust the repository configuration"
+            }
+            WithheldReason::WouldWeakenPolicy => {
+                "a repository may tighten a safety setting but never relax one"
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct WithheldSetting {
+    pub setting: String,
+    pub reason: WithheldReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RepositoryTrustDecision {
+    pub state: RepositoryTrustState,
+    pub configuration_digest: Option<ContentDigest>,
+    pub withheld: Vec<WithheldSetting>,
+}
+
+impl Default for RepositoryTrustDecision {
+    fn default() -> Self {
+        Self {
+            state: RepositoryTrustState::NoRepositoryConfiguration,
+            configuration_digest: None,
+            withheld: Vec::new(),
+        }
+    }
+}
+
+impl RepositoryTrustDecision {
+    pub fn honoured_in_full(&self) -> bool {
+        self.withheld.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RepositoryTrustRecord {
+    pub repository_path: String,
+    pub configuration_digest: ContentDigest,
+    pub granted_at: Timestamp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum NetworkPolicy {
     Disabled,
@@ -26,6 +138,14 @@ pub enum NetworkPolicy {
 }
 
 impl NetworkPolicy {
+    pub fn permissiveness_rank(&self) -> u8 {
+        match self {
+            NetworkPolicy::Disabled => 0,
+            NetworkPolicy::LoopbackOnly => 1,
+            NetworkPolicy::ApprovedEndpoints => 2,
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         match self {
             NetworkPolicy::Disabled => "disabled",
@@ -268,6 +388,8 @@ pub struct EffectiveConfiguration {
     pub timeouts: NodeTimeouts,
     pub environment_allowlist: Vec<String>,
     pub demonstration_mode: bool,
+    #[serde(default)]
+    pub repository_trust: RepositoryTrustDecision,
 }
 
 impl EffectiveConfiguration {
@@ -290,6 +412,12 @@ impl EffectiveConfiguration {
             ));
         }
         if self.commands.of_kind(CommandKind::Test).is_empty() {
+            if self.repository_trust.state == RepositoryTrustState::Untrusted {
+                return Err(ApplicationError::InvalidConfiguration(format!(
+                    "`{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` declares commands that have not been trusted, and no test command could be detected. Read the file, then run `heikas trust {}` if you accept the commands it declares.",
+                    self.repository_path.display()
+                )));
+            }
             return Err(ApplicationError::InvalidConfiguration(
                 "at least one test command must be configured before a run can start".to_string(),
             ));

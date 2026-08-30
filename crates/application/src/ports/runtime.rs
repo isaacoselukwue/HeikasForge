@@ -4,7 +4,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use heikas_domain::identity::RunId;
 
-use crate::configuration::EffectiveConfiguration;
+use crate::configuration::{
+    EffectiveConfiguration, RepositoryTrustDecision, RepositoryTrustRecord,
+};
 use crate::error::ApplicationResult;
 use crate::model::request::CreateRunRequest;
 use crate::ports::agent::AgentDriver;
@@ -24,6 +26,14 @@ pub trait ConfigurationResolver: Send + Sync {
         configuration: &EffectiveConfiguration,
     ) -> ApplicationResult<PathBuf>;
     async fn user_configuration_path(&self) -> ApplicationResult<PathBuf>;
+    async fn repository_trust(
+        &self,
+        repository: &Path,
+    ) -> ApplicationResult<RepositoryTrustDecision>;
+    async fn trust_repository(&self, repository: &Path)
+        -> ApplicationResult<RepositoryTrustRecord>;
+    async fn revoke_repository_trust(&self, repository: &Path) -> ApplicationResult<bool>;
+    async fn trusted_repositories(&self) -> ApplicationResult<Vec<RepositoryTrustRecord>>;
 }
 
 #[async_trait]
@@ -61,5 +71,13 @@ pub struct ExportOutcome {
     pub archive_path: PathBuf,
     pub byte_length: u64,
     pub entry_count: u64,
-    pub redacted: bool,
+    pub redacted_entries: u64,
+    pub unredactable_entries: u64,
+    pub excluded_sensitive_paths: Vec<String>,
+}
+
+impl ExportOutcome {
+    pub fn fully_redacted(&self) -> bool {
+        self.unredactable_entries == 0
+    }
 }

@@ -9,6 +9,35 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const workspaceRoot = resolve(here, "..", "..", "..");
 export const runtimeFile = join(tmpdir(), "heikas-forge-browser-runtime.json");
 
+export const PLACEHOLDER_ACCOUNTS = ["you", "operator", "user", "username", "runner", "ci"];
+
+export function demonstrationRoot(): string {
+  const configured = process.env["HEIKAS_DEMO_ROOT"];
+  if (configured !== undefined && configured.length > 0) {
+    return configured;
+  }
+  return process.platform === "win32"
+    ? join(tmpdir(), "heikas-forge-demonstration")
+    : "/tmp/heikas-forge-demonstration";
+}
+
+export function realAccountPath(text: string): string | null {
+  const patterns = [
+    /\/home\/([A-Za-z0-9._-]+)/g,
+    /\/Users\/([A-Za-z0-9._-]+)/g,
+    /C:\\Users\\([A-Za-z0-9._-]+)/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const account = (match[1] ?? "").toLowerCase();
+      if (account.length > 0 && !PLACEHOLDER_ACCOUNTS.includes(account)) {
+        return match[0];
+      }
+    }
+  }
+  return null;
+}
+
 export interface RuntimeDescriptor {
   baseUrl: string;
   bootstrapUrl: string;
@@ -51,7 +80,17 @@ export async function startOrchestrator(): Promise<RuntimeDescriptor> {
 
   console.log("seeding the deterministic demonstration");
   const demonstration = JSON.parse(
-    run("cargo", ["run", "-q", "-p", "xtask", "--", "demo", "--json"]),
+    run("cargo", [
+      "run",
+      "-q",
+      "-p",
+      "xtask",
+      "--",
+      "demo",
+      "--json",
+      "--work-directory",
+      demonstrationRoot(),
+    ]),
   ) as { run_id: string; heikas_home: string; repository: string };
 
   const environment = { HEIKAS_HOME: demonstration.heikas_home };

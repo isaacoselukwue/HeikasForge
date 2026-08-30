@@ -193,3 +193,107 @@ pub fn internal_readme(context: &CommandContext, path: &Path) -> ApplicationResu
         ExitCode::Success
     })
 }
+
+#[derive(Debug, Serialize)]
+pub struct TrustOutcome {
+    pub repository_path: String,
+    pub state: String,
+    pub configuration_digest: Option<String>,
+    pub withheld: Vec<String>,
+    pub trusted_repositories: Vec<String>,
+}
+
+pub async fn trust(
+    context: &CommandContext,
+    path: &Path,
+    revoke: bool,
+    list: bool,
+) -> ApplicationResult<ExitCode> {
+    let resolver = &context.runtime.configuration;
+    if list {
+        let records = resolver.trusted_repositories().await?;
+        let outcome = TrustOutcome {
+            repository_path: String::new(),
+            state: "listing".to_string(),
+            configuration_digest: None,
+            withheld: Vec::new(),
+            trusted_repositories: records
+                .iter()
+                .map(|record| {
+                    format!(
+                        "{} ({})",
+                        record.repository_path,
+                        record.configuration_digest.short()
+                    )
+                })
+                .collect(),
+        };
+        context.emit(&outcome, |palette| {
+            let mut text = String::new();
+            text.push_str(&palette.heading("Trusted repository configurations\n"));
+            if outcome.trusted_repositories.is_empty() {
+                text.push_str("No repository configuration is trusted.\n");
+            }
+            for entry in &outcome.trusted_repositories {
+                text.push_str(&format!("- {entry}\n"));
+            }
+            text
+        });
+        return Ok(ExitCode::Success);
+    }
+
+    let repository = heikas_infrastructure::paths::canonical_root(path)?;
+    if revoke {
+        let removed = resolver.revoke_repository_trust(&repository).await?;
+        let outcome = TrustOutcome {
+            repository_path: repository.display().to_string(),
+            state: if removed { "revoked" } else { "not_trusted" }.to_string(),
+            configuration_digest: None,
+            withheld: Vec::new(),
+            trusted_repositories: Vec::new(),
+        };
+        context.emit(&outcome, |palette| {
+            if removed {
+                format!(
+                    "{}\n{} will no longer have its configured executables honoured.\n",
+                    palette.heading("Trust withdrawn"),
+                    outcome.repository_path
+                )
+            } else {
+                format!(
+                    "{} was not trusted, so nothing changed.\n",
+                    outcome.repository_path
+                )
+            }
+        });
+        return Ok(ExitCode::Success);
+    }
+
+    let decision = resolver.repository_trust(&repository).await?;
+    let record = resolver.trust_repository(&repository).await?;
+    let outcome = TrustOutcome {
+        repository_path: repository.display().to_string(),
+        state: "trusted".to_string(),
+        configuration_digest: Some(record.configuration_digest.to_string()),
+        withheld: decision
+            .withheld
+            .iter()
+            .map(|entry| format!("{} ({})", entry.setting, entry.reason.as_str()))
+            .collect(),
+        trusted_repositories: Vec::new(),
+    };
+    context.emit(&outcome, |palette| {
+        let mut text = String::new();
+        text.push_str(&palette.heading("Repository configuration trusted\n"));
+        text.push_str(&format!("Repository: {}\n", outcome.repository_path));
+        text.push_str(&format!(
+            "Configuration digest: {}\n",
+            record.configuration_digest.short()
+        ));
+        text.push_str(&palette.muted(
+            "Editing `.heikas/forge.toml` withdraws this decision until you trust it again.\n",
+        ));
+        text
+    });
+    Ok(ExitCode::Success)
+}

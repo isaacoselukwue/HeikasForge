@@ -16,6 +16,18 @@ This detects three distinct corruptions:
 - a reordered or duplicated record fails the sequence check;
 - a truncated or spliced history fails the previous hash check.
 
+## Redaction before durability
+
+Redaction happens where the record is written, not at each call site. Every payload is passed through the run's redactor before it is sealed, so a secret that reached a node result or a failure message never enters the hash chain, never reaches a projection and never leaves over the event stream. Attempt evidence, test evidence and review reports are redacted by the same store for the same reason. A record's hash therefore covers the redacted payload, which is the record that actually exists.
+
+The redactor is built from the run's own redaction configuration, read from the stored run descriptor and cached per run.
+
+## Record size and reading cost
+
+A record beyond four mebibytes is refused at append rather than written, and the reader refuses a line beyond the same limit rather than growing without bound.
+
+A log is not reparsed from the beginning on every read. Each log file keeps a verified prefix: the events decoded so far, the byte offset up to which the chain has been verified, and the tail hash. A read seeks to that offset and verifies only the bytes appended since. A file that has shrunk, which happens when a partial tail is truncated, discards the prefix and rebuilds. Repeated reads and stream reconnections therefore cost the size of the new tail rather than the size of the history.
+
 ## Append protocol
 
 An append is a single line followed by a newline, written to a file opened for append, flushed and synchronised before the call returns. The final newline is required. The in-memory tail is only advanced after the synchronised write succeeds, so a crash during the write leaves the tail unchanged.

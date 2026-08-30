@@ -145,6 +145,7 @@ async fn execute(arguments: Arguments) -> ExitCode {
             no_open,
             demonstration,
             unsafe_bind_all_interfaces,
+            public_origin,
         } => {
             commands::ui::serve(
                 &context,
@@ -154,6 +155,7 @@ async fn execute(arguments: Arguments) -> ExitCode {
                     open_browser: !no_open,
                     demonstration,
                     bind_all_interfaces: unsafe_bind_all_interfaces,
+                    public_origin,
                 },
             )
             .await
@@ -162,6 +164,9 @@ async fn execute(arguments: Arguments) -> ExitCode {
             commands::maintenance::cleanup(&context, &run, force).await
         }
         Command::InternalReadme { path } => commands::setup::internal_readme(&context, &path),
+        Command::Trust { path, revoke, list } => {
+            commands::setup::trust(&context, &path, revoke, list).await
+        }
         Command::Policy { path } => commands::maintenance::policy(&context, &path),
         Command::Schemas { output } => commands::maintenance::schemas(&context, &output),
         Command::Completions { .. } => Ok(ExitCode::Success),

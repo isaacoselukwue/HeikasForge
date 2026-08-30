@@ -8,7 +8,7 @@ use heikas_application::ports::process::{
     CancellationSignal, ProcessOutcome, ProcessRequest, ProcessRunner,
 };
 use heikas_domain::clock::DurationMs;
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, Command};
 use tracing::{debug, warn};
 
@@ -55,7 +55,11 @@ impl SupervisedProcessRunner {
         for (name, value) in &request.environment {
             command.env(name, value);
         }
-        command.stdin(Stdio::null());
+        if request.stdin.is_some() {
+            command.stdin(Stdio::piped());
+        } else {
+            command.stdin(Stdio::null());
+        }
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
         command.kill_on_drop(true);
@@ -83,6 +87,15 @@ impl ProcessRunner for SupervisedProcessRunner {
         })?;
         let process_id = child.id();
         let job = tree::register(&child);
+
+        if let Some(payload) = request.stdin.clone() {
+            if let Some(mut handle) = child.stdin.take() {
+                tokio::spawn(async move {
+                    let _ = handle.write_all(&payload).await;
+                    let _ = handle.shutdown().await;
+                });
+            }
+        }
 
         let stdout_handle = child.stdout.take();
         let stderr_handle = child.stderr.take();

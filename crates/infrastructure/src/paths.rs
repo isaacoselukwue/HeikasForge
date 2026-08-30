@@ -2,21 +2,10 @@ use std::path::{Component, Path, PathBuf};
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use heikas_application::error::{ApplicationError, ApplicationResult};
-use heikas_domain::path_policy::{
-    evaluate_path, PathAccess, PathPolicy, PatternMatcher, RelativeWorkspacePath,
-};
+use heikas_domain::path_policy::{evaluate_path, PathAccess, PathPolicy, RelativeWorkspacePath};
 use heikas_domain::DomainError;
 
-pub struct GlobPatternMatcher;
-
-impl PatternMatcher for GlobPatternMatcher {
-    fn matches(&self, pattern: &str, path: &str) -> bool {
-        match Glob::new(pattern) {
-            Ok(glob) => glob.compile_matcher().is_match(path),
-            Err(_) => pattern == path,
-        }
-    }
-}
+pub use heikas_domain::path_policy::GlobPatternMatcher;
 
 pub fn build_glob_set(patterns: &[String]) -> ApplicationResult<GlobSet> {
     let mut builder = GlobSetBuilder::new();

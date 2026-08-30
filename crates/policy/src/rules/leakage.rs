@@ -12,9 +12,7 @@ pub const PLACEHOLDER_ACCOUNTS: [&str; 8] = [
     "you", "operator", "user", "username", "runner", "ci", "example", "someone",
 ];
 
-const DATA_EXTENSIONS: [&str; 9] = [
-    "json", "jsonl", "yaml", "yml", "toml", "env", "log", "cfg", "ini",
-];
+const RUNTIME_DESCRIPTOR_KEYS: [&str; 3] = ["\"serverpid\"", "\"bootstrapurl\"", "\"heikashome\""];
 
 pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>> {
     let mut findings = Vec::new();
@@ -28,7 +26,16 @@ pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>>
         let Some(contents) = repository.read_text(path)? else {
             continue;
         };
-        let is_data = DATA_EXTENSIONS.contains(&path.rsplit('.').next().unwrap_or(""));
+        if let Some(line_number) = private_key_block(&contents) {
+            findings.push(
+                PolicyFinding::violation(
+                    SECRET_RULE,
+                    "a tracked file contains a private key block",
+                    "Remove the key from version control, rotate it, and add the file to the ignore rules.",
+                )
+                .at(path.clone(), line_number, 1),
+            );
+        }
         for (index, line) in contents.lines().enumerate() {
             if let Some(account) = host_account(line) {
                 findings.push(
@@ -42,17 +49,15 @@ pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>>
                     .at(path.clone(), index as u32 + 1, 1),
                 );
             }
-            if is_data {
-                if let Some(shape) = secret_shape(line) {
-                    findings.push(
-                        PolicyFinding::violation(
-                            SECRET_RULE,
-                            format!("a tracked data file contains {shape}"),
-                            "Remove the file from version control and add it to the ignore rules.",
-                        )
-                        .at(path.clone(), index as u32 + 1, 1),
-                    );
-                }
+            if let Some(shape) = secret_shape(line) {
+                findings.push(
+                    PolicyFinding::violation(
+                        SECRET_RULE,
+                        format!("a tracked file contains {shape}"),
+                        "Remove the value from version control, rotate it, and add the file to the ignore rules if it is a run artefact.",
+                    )
+                    .at(path.clone(), index as u32 + 1, 1),
+                );
             }
         }
     }
@@ -90,31 +95,148 @@ pub fn host_account(line: &str) -> Option<String> {
 
 pub fn secret_shape(line: &str) -> Option<&'static str> {
     let lowered = line.to_ascii_lowercase();
+
     if let Some(index) = lowered.find("token=") {
-        let value: String = line[index + "token=".len()..]
-            .chars()
-            .take_while(|character| character.is_ascii_hexdigit())
-            .collect();
-        if value.len() >= 32 {
+        let value = collect_value(&line[index + "token=".len()..], |character| {
+            character.is_ascii_hexdigit()
+        });
+        if value.len() >= 32 && looks_random(&value) {
             return Some("a session token");
         }
     }
-    if line.contains("-----BEGIN ") && line.contains("PRIVATE KEY-----") {
-        return Some("a private key block");
-    }
+
     for prefix in ["ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"] {
-        if let Some(index) = line.find(prefix) {
-            let value: String = line[index + prefix.len()..]
-                .chars()
-                .take_while(|character| character.is_ascii_alphanumeric() || *character == '_')
-                .collect();
-            if value.len() >= 20 {
+        if let Some(value) = value_after(line, prefix, 20, token_character) {
+            if looks_random(&value) {
                 return Some("a source forge access token");
             }
         }
     }
-    if lowered.contains("\"serverpid\"") || lowered.contains("\"bootstrapurl\"") {
+
+    for prefix in ["sk-ant-", "sk-proj-", "sk-"] {
+        if let Some(value) = value_after(line, prefix, 20, token_character) {
+            if looks_random(&value) {
+                return Some("a model provider api key");
+            }
+        }
+    }
+
+    for prefix in ["xoxb-", "xoxp-", "xoxa-", "xoxr-", "xoxs-"] {
+        if let Some(value) = value_after(line, prefix, 12, token_character) {
+            if looks_random(&value) {
+                return Some("a messaging platform token");
+            }
+        }
+    }
+
+    if let Some(value) = value_after(line, "AKIA", 16, |character| {
+        character.is_ascii_uppercase() || character.is_ascii_digit()
+    }) {
+        if value.len() == 16 && looks_random(&value) {
+            return Some("a cloud access key identifier");
+        }
+    }
+
+    if let Some(value) = value_after(line, "AIza", 35, token_character) {
+        if looks_random(&value) {
+            return Some("a cloud api key");
+        }
+    }
+
+    if let Some(value) = value_after(line, "eyJ", 20, |character| {
+        character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+    }) {
+        if value.matches('.').count() >= 2 && looks_random(&value.replace('.', "")) {
+            return Some("a signed web token");
+        }
+    }
+
+    if RUNTIME_DESCRIPTOR_KEYS
+        .iter()
+        .any(|key| lowered.contains(key))
+    {
         return Some("a captured runtime descriptor");
     }
+
     None
+}
+
+fn token_character(character: char) -> bool {
+    character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+}
+
+fn collect_value(remainder: &str, accepted: impl Fn(char) -> bool) -> String {
+    remainder.chars().take_while(|c| accepted(*c)).collect()
+}
+
+fn value_after(
+    line: &str,
+    prefix: &str,
+    minimum: usize,
+    accepted: impl Fn(char) -> bool + Copy,
+) -> Option<String> {
+    let index = line.find(prefix)?;
+    let value = collect_value(&line[index + prefix.len()..], accepted);
+    (value.len() >= minimum).then_some(value)
+}
+
+fn private_key_block(contents: &str) -> Option<u32> {
+    let lines: Vec<&str> = contents.lines().collect();
+    for (index, line) in lines.iter().enumerate() {
+        let Some(rest) = line.trim().strip_prefix("-----BEGIN ") else {
+            continue;
+        };
+        let Some(kind) = rest.strip_suffix(" PRIVATE KEY-----") else {
+            continue;
+        };
+        if kind.is_empty()
+            || !kind
+                .chars()
+                .all(|character| character.is_ascii_uppercase() || character == ' ')
+        {
+            continue;
+        }
+        let body: usize = lines
+            .iter()
+            .skip(index + 1)
+            .take_while(|candidate| !candidate.trim().starts_with("-----END "))
+            .map(|candidate| {
+                candidate
+                    .trim()
+                    .chars()
+                    .filter(|character| {
+                        character.is_ascii_alphanumeric() || matches!(character, '+' | '/' | '=')
+                    })
+                    .count()
+            })
+            .sum();
+        if body >= 40 {
+            return Some(index as u32 + 1);
+        }
+    }
+    None
+}
+
+pub fn looks_random(value: &str) -> bool {
+    let uppercased = value.to_ascii_uppercase();
+    for marker in ["EXAMPLE", "SAMPLE", "PLACEHOLDER", "REDACTED", "XXXXXX"] {
+        if uppercased.contains(marker) {
+            return false;
+        }
+    }
+    let characters: Vec<char> = value.chars().collect();
+    if characters.len() < 8 {
+        return false;
+    }
+    let distinct = characters
+        .iter()
+        .map(|character| character.to_ascii_lowercase())
+        .collect::<std::collections::BTreeSet<char>>()
+        .len();
+    if distinct < 8 {
+        return false;
+    }
+    let ascending = characters.windows(2).all(|pair| pair[0] <= pair[1]);
+    let descending = characters.windows(2).all(|pair| pair[0] >= pair[1]);
+    !ascending && !descending
 }

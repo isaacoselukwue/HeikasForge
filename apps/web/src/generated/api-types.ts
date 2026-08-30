@@ -147,6 +147,12 @@ export type CommandKind =
   | "policy"
   | "build";
 export type ReportFormat = "none" | "j_unit_xml" | "lcov" | "sarif" | "cargo_test_json" | "text";
+export type RepositoryTrustState = "no_repository_configuration" | "trusted" | "untrusted";
+export type ContentDigest = string;
+export type WithheldReason =
+  | "user_configuration_only"
+  | "requires_repository_trust"
+  | "would_weaken_policy";
 
 export interface EffectiveConfiguration {
   schema_version: number;
@@ -163,6 +169,7 @@ export interface EffectiveConfiguration {
   timeouts: NodeTimeouts;
   environment_allowlist: string[];
   demonstration_mode: boolean;
+  repository_trust?: RepositoryTrustDecision;
 }
 export interface RunBudgets {
   candidates: number;
@@ -261,6 +268,15 @@ export interface NodeTimeouts {
   command_seconds: number;
   review_seconds: number;
   git_seconds: number;
+}
+export interface RepositoryTrustDecision {
+  state: RepositoryTrustState;
+  configuration_digest?: ContentDigest | null;
+  withheld: WithheldSetting[];
+}
+export interface WithheldSetting {
+  setting: string;
+  reason: WithheldReason;
 }
 
 export interface CreateRunRequest {
@@ -575,7 +591,6 @@ export type EventPayload =
       message: string;
       detail?: unknown;
     };
-export type ContentDigest = string;
 export type RunStatus =
   | "created"
   | "validating"
@@ -948,3 +963,4 @@ export interface TimelineEntry {
   duration?: DurationMs | null;
   level: TimelineLevel;
 }
+

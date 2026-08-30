@@ -59,6 +59,7 @@ pub fn run_all(repository: &TrackedRepository) -> PolicyResult<PolicyReport> {
             leakage::HOST_PATH_RULE.to_string(),
             leakage::SECRET_RULE.to_string(),
             internal_readme::RULE.to_string(),
+            internal_readme::PRIVATE_DOCUMENT_RULE.to_string(),
             authorship::RULE.to_string(),
         ],
         ..PolicyReport::default()

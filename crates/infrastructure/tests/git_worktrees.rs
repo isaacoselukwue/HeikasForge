@@ -502,3 +502,35 @@ async fn a_directory_outside_a_git_working_tree_is_rejected() {
     let outcome = harness.service.inspect(outside.path()).await;
     assert!(outcome.is_err());
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_dirty_snapshot_never_follows_a_symbolic_link_out_of_the_repository() {
+    let harness = harness();
+    let outside = tempfile::TempDir::new().expect("a directory outside the repository");
+    let secret = outside.path().join("id_rsa");
+    std::fs::write(&secret, "PRIVATE MATERIAL\n").expect("the secret writes");
+    std::os::unix::fs::symlink(&secret, harness.repository.join("notes.txt"))
+        .expect("the link creates");
+
+    let snapshot = harness
+        .service
+        .capture_dirty_snapshot(&harness.repository)
+        .await
+        .expect("the snapshot captures");
+
+    let cursor = std::io::Cursor::new(snapshot.untracked_archive.clone());
+    let mut archive = zip::ZipArchive::new(cursor).expect("the archive reads");
+    let mut combined = String::new();
+    for index in 0..archive.len() {
+        use std::io::Read;
+        let mut entry = archive.by_index(index).expect("an entry reads");
+        let mut contents = String::new();
+        let _ = entry.read_to_string(&mut contents);
+        combined.push_str(&contents);
+    }
+    assert!(
+        !combined.contains("PRIVATE MATERIAL"),
+        "a symbolic link must never be dereferenced into the candidate worktrees"
+    );
+}

@@ -77,8 +77,9 @@ pub fn build_runtime(layout: StoreLayout) -> ApplicationResult<Runtime> {
     let redactor: Arc<dyn Redactor> = Arc::new(PatternRedactor::without_environment());
     let logs = Arc::new(FileRunLog::new(layout.clone(), Arc::clone(&redactor)));
     let host: Arc<dyn HostEnvironment> = Arc::new(LocalHostEnvironment::new(layout.clone()));
-    let configuration: Arc<dyn ConfigurationResolver> =
-        Arc::new(LayeredConfigurationResolver::new(layout.clone()));
+    let configuration: Arc<dyn ConfigurationResolver> = Arc::new(
+        LayeredConfigurationResolver::new(layout.clone(), Arc::clone(&clock)),
+    );
     let factory: Arc<dyn RuntimeFactory> = Arc::new(AdapterRuntimeFactory::new(
         Arc::clone(&processes),
         Arc::clone(&git),

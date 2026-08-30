@@ -39,6 +39,11 @@ enum Task {
         keep: bool,
         #[arg(long, help = "Write the outcome as JSON")]
         json: bool,
+        #[arg(
+            long,
+            help = "Directory that holds the disposable fixture repository and run store"
+        )]
+        work_directory: Option<std::path::PathBuf>,
     },
 
     #[command(about = "Derive the animated and MP4 media from the captured frames")]
@@ -52,6 +57,9 @@ enum Task {
 
     #[command(about = "Regenerate the published JSON schemas")]
     Schemas,
+
+    #[command(about = "Fail when the published schemas or wire types are out of date")]
+    Drift,
 }
 
 fn main() {
@@ -66,10 +74,15 @@ fn main() {
             skip_media,
             fail_fast,
         }),
-        Task::Demo { keep, json } => run_demonstration(keep, json),
+        Task::Demo {
+            keep,
+            json,
+            work_directory,
+        } => run_demonstration(keep, json, work_directory),
         Task::Media { validate_only } => media::run(validate_only),
         Task::Authorship => authorship::run(),
         Task::Schemas => verification::regenerate_schemas(),
+        Task::Drift => verification::check_schema_drift(),
     };
 
     if let Err(error) = outcome {
@@ -78,11 +91,16 @@ fn main() {
     }
 }
 
-fn run_demonstration(keep: bool, json: bool) -> TaskResult<()> {
+fn run_demonstration(
+    keep: bool,
+    json: bool,
+    work_directory: Option<std::path::PathBuf>,
+) -> TaskResult<()> {
+    let default = DemonstrationOptions::default();
     let options = DemonstrationOptions {
         reset: !keep,
         keep_home: keep,
-        ..DemonstrationOptions::default()
+        work_directory: work_directory.unwrap_or(default.work_directory),
     };
     let outcome = demonstration::execute(&options)?;
     if json {

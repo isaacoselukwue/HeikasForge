@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
+use heikas_application::configuration::RedactionConfiguration;
 use heikas_application::ports::observability::Redactor;
 use regex::Regex;
+use serde_json::Value;
 
 pub const REDACTION_PLACEHOLDER: &str = "[redacted]";
 
@@ -37,6 +39,21 @@ impl PatternRedactor {
             patterns,
             home_prefix,
         }
+    }
+
+    pub fn for_configuration(configuration: &RedactionConfiguration) -> Self {
+        let home = if configuration.redact_home_prefix {
+            std::env::var("HOME")
+                .ok()
+                .or_else(|| std::env::var("USERPROFILE").ok())
+        } else {
+            None
+        };
+        Self::new(
+            &configuration.secret_environment_variables,
+            &configuration.additional_patterns,
+            home,
+        )
     }
 
     pub fn without_environment() -> Self {
@@ -141,4 +158,24 @@ fn default_patterns() -> Vec<Regex> {
     .into_iter()
     .filter_map(|pattern| Regex::new(pattern).ok())
     .collect()
+}
+
+pub fn redact_text_leaves(redactor: &dyn Redactor, value: &Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(redactor.redact_text(text)),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| redact_text_leaves(redactor, item))
+                .collect(),
+        ),
+        Value::Object(entries) => {
+            let mut mapped = serde_json::Map::with_capacity(entries.len());
+            for (key, entry) in entries {
+                mapped.insert(key.clone(), redact_text_leaves(redactor, entry));
+            }
+            Value::Object(mapped)
+        }
+        other => other.clone(),
+    }
 }

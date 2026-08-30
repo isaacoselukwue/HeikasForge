@@ -94,6 +94,7 @@ It seeds a small Python repository with a real rounding defect, runs three candi
 ```bash
 heikas doctor /path/to/repository            # inspect Git, agents, commands, scanners and disk
 heikas init /path/to/repository              # detect the project and write .heikas/forge.toml
+heikas trust /path/to/repository             # accept the executables a cloned repository declares
 heikas run --repo . --task "Fix the rounding defect in the invoice total"
 heikas list                                  # every run with status, node, age and winner
 heikas show <run-id>                         # summary, candidate table and selection rationale
@@ -120,7 +121,10 @@ Add `--json` to any command for a single machine-readable object.
 - Every agent path is confined to its assigned worktree, and is checked against protected and sensitive glob rules. Symbolic links out of the worktree are refused.
 - Agents cannot commit, push, fetch, merge, rebase, alter remotes, change Git configuration or update submodules. All Git writes belong to the infrastructure Git service.
 - Child processes run in their own process group on Unix and a Job Object on Windows, with timeouts, output limits and escalation. No descendant survives a timeout or cancellation.
-- Secrets are redacted before anything is written to a log, an event, a prompt snapshot or an export.
+- A repository's own `.heikas/forge.toml` is treated as untrusted input. Settings that name an executable are honoured only after you run `heikas trust`, and that decision is bound to the exact file digest, so editing the file withdraws it. Settings that would redirect your model endpoint, your API key variable, your Sonar host or your commit authorship are never honoured from a repository. Safety settings such as protected paths and redaction can only be tightened by a repository, never relaxed. `heikas doctor` lists whatever was withheld and why.
+- Secrets are redacted where records are written, so nothing unredacted reaches the durable event log, the projections, the attempt evidence, the live event stream or an export.
+- An evidence archive reports what it actually did. Text entries are redacted by content, entries that are not text are counted and named as unredacted rather than labelled otherwise, and worktree files matching a sensitive pattern are excluded and listed.
+- A patch from an agent is enumerated by Git itself, forwards and in reverse, so renames, copies and mode changes are policy checked like any other write. A patch that creates a symbolic link is refused.
 - Existing tests, coverage thresholds and quality configuration cannot be weakened silently. Deleting a test, adding a skip marker or lowering a threshold is a blocking finding.
 
 ## Adapters
@@ -135,7 +139,7 @@ Add `--json` to any command for a single machine-readable object.
 | SonarQube MCP | Read-only review through a SonarQube MCP server, with recorded tool evidence | No | No |
 | Advisory review | Maintainability and design observations, advisory unless a configured rule promotes a finding | No | No |
 
-An external adapter reports its real restriction strength. If it cannot honour a required boundary, such as a read-only planning node, it is refused rather than silently weakened.
+An external adapter detects its real restriction strength by reading the installed interface's own option listing, rather than assuming it from the adapter name. If a required restriction option is missing, or the listing cannot be read, the adapter reports no isolation and refuses a read-only planning node rather than silently weakening it. After a read-only invocation the worktree is re-hashed, and any change fails the node. Arguments that would bypass a restriction are refused at configuration time.
 
 ## Development
 

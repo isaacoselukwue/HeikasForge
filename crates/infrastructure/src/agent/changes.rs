@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
 use heikas_application::error::ApplicationResult;
@@ -22,17 +24,10 @@ pub fn observe_changed_paths(worktree: &Path) -> ApplicationResult<FileFingerpri
         let Some(relative) = crate::paths::relative_within(&root, entry.path()) else {
             continue;
         };
-        let Ok(metadata) = entry.metadata() else {
+        let Ok(digest) = content_digest(entry.path()) else {
             continue;
         };
-        let modified = metadata
-            .modified()
-            .ok()
-            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0);
-        let material = format!("{}:{}:{}", relative, metadata.len(), modified);
-        fingerprints.insert(relative, ContentDigest::of_str(&material));
+        fingerprints.insert(relative, digest);
     }
     Ok(fingerprints)
 }
@@ -53,4 +48,19 @@ pub fn difference(before: &FileFingerprints, after: &FileFingerprints) -> Vec<St
     changed.sort();
     changed.dedup();
     changed
+}
+
+fn content_digest(path: &Path) -> std::io::Result<ContentDigest> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut hasher = blake3::Hasher::new();
+    let mut buffer = [0u8; 65_536];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(ContentDigest::of_str(hasher.finalize().to_hex().as_str()))
 }

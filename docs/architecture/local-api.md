@@ -2,7 +2,7 @@
 
 ## Binding
 
-The server binds to `127.0.0.1` on an available port. Binding to every interface requires an explicit development flag that is hidden from ordinary help output.
+The server binds to `127.0.0.1` on an available port. Binding to every interface requires an explicit development flag that is hidden from ordinary help output, and that flag now also requires `--public-origin`. Without a declared origin the server refuses to start, because the cross-site and host checks have nothing to compare against and would silently pass.
 
 ## Session establishment
 
@@ -10,17 +10,19 @@ Each server start generates a random bootstrap token held only in memory. `heika
 
 `GET /api/v1/session` resumes an existing session so that navigation and reloads do not require the bootstrap token again. It returns unauthorised when no valid session cookie is present.
 
-Token comparison is constant time.
+Token comparison uses a constant time primitive. Bootstrap exchange is rate limited over a rolling window, so guessing the token is bounded rather than free.
 
 ## Request guard
 
-Every route outside health, session and the static graph definition requires a valid session. A state-changing method additionally requires the cross-site token header to match the session, and an origin or referrer that equals the server's own origin. State-changing requests are rate limited per session over a rolling window.
+Every request is first checked against the address the server is actually serving. A `Host` header naming anything else is refused, which removes the rebinding path even for routes that carry no session. Loopback aliases on the bound port are accepted, so `localhost` and `127.0.0.1` both work.
+
+Every route outside health, session and the static graph definition requires a valid session. A state-changing method additionally requires the cross-site token header to match the session, and an origin or referrer that equals the server's own origin. `POST /api/v1/session` carries no session by definition, but it is origin checked like every other mutation. State-changing requests are rate limited per session over a rolling window.
 
 Rejections are typed: unauthorised for a missing or expired session, forbidden for a token or origin mismatch, and too many requests when the rate limit trips.
 
 ## Boundary validation
 
-Run identifiers, candidate identifiers and artefact digests are parsed into their domain types at the boundary. An artefact is resolved through a per-run content-addressed index, so no request can name a filesystem path. Range requests are capped. Request bodies are capped, and the task and plan bodies have their own explicit limits.
+Run identifiers, candidate identifiers and artefact digests are parsed into their domain types at the boundary. An artefact is resolved through a per-run content-addressed index, so no request can name a filesystem path. The export route accepts an archive name, never a path: it must be a single component using letters, digits, full stops, hyphens or underscores, it must end in `.zip`, and it is always resolved inside that run's own export directory. Range requests are capped. Request bodies are capped, and the task and plan bodies have their own explicit limits.
 
 An unmatched path under `/api` returns a typed not-found document rather than the interface shell, so a client never mistakes a routing error for an empty result.
 

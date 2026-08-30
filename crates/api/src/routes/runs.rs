@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use axum::extract::{Path, Query, State};
@@ -196,7 +195,7 @@ pub async fn logs(
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct ExportBody {
-    pub output_path: Option<String>,
+    pub file_name: Option<String>,
     pub include_worktrees: Option<bool>,
 }
 
@@ -206,6 +205,9 @@ pub struct ExportResponse {
     pub byte_length: u64,
     pub entry_count: u64,
     pub redacted: bool,
+    pub redacted_entries: u64,
+    pub unredactable_entries: u64,
+    pub excluded_sensitive_paths: Vec<String>,
 }
 
 pub async fn export_run(
@@ -214,9 +216,10 @@ pub async fn export_run(
     Json(body): Json<ExportBody>,
 ) -> ApiResult<Json<ExportResponse>> {
     let run_id = parse_run_id(&run_id)?;
-    let output_path = match body.output_path {
-        Some(path) => PathBuf::from(path),
-        None => state.runtime.layout.exports_directory(run_id),
+    let directory = state.runtime.layout.exports_directory(run_id);
+    let output_path = match body.file_name {
+        Some(name) => directory.join(export_file_name(&name)?),
+        None => directory,
     };
     let outcome = state
         .runtime
@@ -233,6 +236,30 @@ pub async fn export_run(
         archive_path: outcome.archive_path.display().to_string(),
         byte_length: outcome.byte_length,
         entry_count: outcome.entry_count,
-        redacted: outcome.redacted,
+        redacted: outcome.fully_redacted(),
+        redacted_entries: outcome.redacted_entries,
+        unredactable_entries: outcome.unredactable_entries,
+        excluded_sensitive_paths: outcome.excluded_sensitive_paths,
     }))
+}
+
+fn export_file_name(requested: &str) -> ApiResult<String> {
+    let trimmed = requested.trim();
+    let acceptable = !trimmed.is_empty()
+        && trimmed.len() <= 128
+        && trimmed.ends_with(".zip")
+        && trimmed != ".zip"
+        && trimmed.chars().all(|character| {
+            character.is_ascii_alphanumeric()
+                || character == '.'
+                || character == '-'
+                || character == '_'
+        })
+        && !trimmed.contains("..");
+    if !acceptable {
+        return Err(ApiError::bad_request(
+            "the archive name must be a single file name ending in `.zip` using letters, digits, full stops, hyphens or underscores",
+        ));
+    }
+    Ok(trimmed.to_string())
 }

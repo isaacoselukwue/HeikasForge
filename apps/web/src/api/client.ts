@@ -146,6 +146,9 @@ export interface ExportResponse {
   byte_length: number;
   entry_count: number;
   redacted: boolean;
+  redacted_entries: number;
+  unredactable_entries: number;
+  excluded_sensitive_paths: string[];
 }
 
 let csrfToken: string | null = null;

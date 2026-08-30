@@ -28,6 +28,7 @@ tower-http = { workspace = true }
 rust-embed = { workspace = true }
 mime_guess = { workspace = true }
 rand = { workspace = true }
+subtle = { workspace = true }
 uuid = { workspace = true }
 time = { workspace = true }
 schemars = { workspace = true }

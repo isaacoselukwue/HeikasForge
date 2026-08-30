@@ -129,6 +129,13 @@ impl QualityProfile {
         }
     }
 
+    pub fn strictness_rank(&self) -> u8 {
+        match self {
+            QualityProfile::Standard => 0,
+            QualityProfile::Strict => 1,
+        }
+    }
+
     pub fn default_minimum_line_coverage(&self) -> Option<f64> {
         match self {
             QualityProfile::Standard => None,

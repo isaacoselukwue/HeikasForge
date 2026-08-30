@@ -13,8 +13,9 @@ The policy crate inspects the tracked files and the commit history and fails on:
 - a remote font, analytics or content delivery reference in the interface;
 - a broken or placeholder public media reference;
 - a tracked file that records a real account home directory, rather than a documented placeholder;
-- a tracked data file that carries session token, private key or access token material;
+- a tracked text file that carries session token, model provider key, cloud key, signed web token, private key or runtime descriptor material;
 - a tracked or ignored internal working notes file;
+- a tracked copy of a private working document such as `spec.md` or `CLAUDE.md`;
 - a commit whose author or committer is not the required identity, or whose message carries assistant, model or tool attribution.
 
 ## Comment detection is lexical, not regular
@@ -23,12 +24,13 @@ Comments are found by a hand-written lexer per language family rather than by pa
 
 ## Documented exemptions
 
-Three exemptions are configured centrally rather than with inline suppressions.
+These exemptions are configured centrally rather than with inline suppressions.
 
 - The dictionary file at `crates/policy/dictionary.toml` is never scanned by the spelling rule, because it necessarily contains the discouraged spellings it detects.
 - The dictionary carries a list of protocol identifiers such as HTTP header names. A literal that is exactly one of them, or that begins with one followed by a colon, is exempt, because renaming a third-party API identifier would be incorrect.
 - A string literal that looks like a regular expression is exempt from the spelling rule, because a pattern is not prose.
 - The leakage rule never scans its own source at `crates/policy/src/rules/leakage.rs`, because that file necessarily contains the path prefixes and token shapes it detects.
+- The leakage rule discriminates a real secret from a pattern definition or a documented sample by structure rather than by an exemption list. A candidate value must have at least eight distinct characters, must not be a monotonic character run, and must not contain a documented sample marker such as `EXAMPLE`. A private key is reported only when a well-formed header line is followed by enough encoded body to be real key material, so a regular expression that merely describes the header is never reported.
 
 Generated files, the embedded asset directory, the documentation media and the fixtures are excluded from the first-party source rules.
 

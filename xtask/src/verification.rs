@@ -16,7 +16,6 @@ struct Step {
     program: String,
     arguments: Vec<String>,
     directory: PathBuf,
-    optional: bool,
 }
 
 impl Step {
@@ -26,7 +25,6 @@ impl Step {
             program: cargo_executable(),
             arguments: arguments.iter().map(|value| (*value).to_string()).collect(),
             directory: workspace_root(),
-            optional: false,
         }
     }
 
@@ -41,14 +39,12 @@ impl Step {
                 script.to_string(),
             ],
             directory: workspace_root(),
-            optional: false,
         }
     }
+}
 
-    fn optional(mut self) -> Self {
-        self.optional = true;
-        self
-    }
+fn describe_skipped(name: &str) {
+    println!("--- {name} was NOT run in this environment ---");
 }
 
 pub fn run(options: Options) -> TaskResult<()> {
@@ -87,6 +83,36 @@ pub fn run(options: Options) -> TaskResult<()> {
                 ".",
             ],
         ),
+        Step::web("interface bundle build", "build"),
+        Step {
+            name: "schema and wire type drift",
+            program: cargo_executable(),
+            arguments: vec![
+                "run".to_string(),
+                "-q".to_string(),
+                "-p".to_string(),
+                "xtask".to_string(),
+                "--".to_string(),
+                "drift".to_string(),
+            ],
+            directory: workspace_root(),
+        },
+        Step {
+            name: "dependency advisories and licences",
+            program: cargo_executable(),
+            arguments: vec!["deny".to_string(), "check".to_string()],
+            directory: workspace_root(),
+        },
+        Step {
+            name: "interface dependency audit",
+            program: "pnpm".to_string(),
+            arguments: vec![
+                "audit".to_string(),
+                "--audit-level".to_string(),
+                "high".to_string(),
+            ],
+            directory: workspace_root(),
+        },
     ];
 
     if !options.skip_browser {
@@ -106,7 +132,6 @@ pub fn run(options: Options) -> TaskResult<()> {
                 "--validate-only".to_string(),
             ],
             directory: workspace_root(),
-            optional: false,
         });
     }
     steps.push(Step {
@@ -121,15 +146,11 @@ pub fn run(options: Options) -> TaskResult<()> {
             "authorship".to_string(),
         ],
         directory: workspace_root(),
-        optional: false,
     });
-    steps.push(
-        Step::cargo(
-            "release smoke build",
-            &["build", "--release", "-p", "heikas-cli"],
-        )
-        .optional(),
-    );
+    steps.push(Step::cargo(
+        "release smoke build",
+        &["build", "--release", "-p", "heikas-cli"],
+    ));
 
     let mut failures = Vec::new();
     for step in &steps {
@@ -145,11 +166,6 @@ pub fn run(options: Options) -> TaskResult<()> {
                 step.name,
                 elapsed.as_secs_f64()
             );
-        } else if step.optional {
-            println!(
-                "--- {} did not pass and is recorded as optional in this environment ---",
-                step.name
-            );
         } else {
             println!(
                 "--- {} FAILED after {:.1}s ---",
@@ -164,8 +180,20 @@ pub fn run(options: Options) -> TaskResult<()> {
     }
 
     println!();
+    if options.skip_browser {
+        describe_skipped("Playwright tests");
+    }
+    if options.skip_media {
+        describe_skipped("README media validation");
+    }
     if failures.is_empty() {
-        println!("Every verification step passed.");
+        if options.skip_browser || options.skip_media {
+            println!(
+                "Every verification step that ran passed. The steps listed above were skipped."
+            );
+        } else {
+            println!("Every verification step passed.");
+        }
         return Ok(());
     }
     for failure in &failures {
@@ -210,5 +238,29 @@ pub fn regenerate_schemas() -> TaskResult<()> {
         });
     }
     println!("Schemas and generated wire types are up to date.");
+    Ok(())
+}
+
+pub fn check_schema_drift() -> TaskResult<()> {
+    regenerate_schemas()?;
+    let root = workspace_root();
+    let succeeded = stream(
+        "git",
+        &[
+            "diff",
+            "--exit-code",
+            "--",
+            "schemas",
+            "apps/web/src/generated",
+        ],
+        &root,
+        &[],
+    )?;
+    if !succeeded {
+        return Err(TaskError::StepFailed {
+            step: "schema and wire type drift".to_string(),
+        });
+    }
+    println!("The published schemas and generated wire types match the source.");
     Ok(())
 }

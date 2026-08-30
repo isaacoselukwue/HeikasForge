@@ -21,6 +21,7 @@ pub const MAXIMUM_REQUEST_BYTES: usize = 1_048_576;
 pub struct ServerOptions {
     pub port: u16,
     pub bind_all_interfaces: bool,
+    pub public_origin: Option<String>,
     pub demonstration_mode: bool,
 }
 
@@ -68,6 +69,12 @@ pub fn build_router(state: ApiState) -> Router {
 }
 
 pub async fn start(runtime: Runtime, options: ServerOptions) -> ApplicationResult<RunningServer> {
+    if options.bind_all_interfaces && options.public_origin.is_none() {
+        return Err(ApplicationError::InvalidConfiguration(
+            "binding every interface requires an explicit public origin so that the cross-site request forgery and host checks remain enforceable. Supply --public-origin http://<host>:<port>."
+                .to_string(),
+        ));
+    }
     let state = ApiState::new(runtime, options.demonstration_mode);
     let address = SocketAddr::new(
         if options.bind_all_interfaces {
@@ -83,9 +90,13 @@ pub async fn start(runtime: Runtime, options: ServerOptions) -> ApplicationResul
     let bound = listener
         .local_addr()
         .map_err(|error| ApplicationError::Storage(error.to_string()))?;
-    state.set_origin(format!("http://{bound}")).await;
+    let origin = options
+        .public_origin
+        .clone()
+        .unwrap_or_else(|| format!("http://{bound}"));
+    state.set_origin(origin.clone()).await;
 
-    let bootstrap_url = format!("http://{bound}/#token={}", state.sessions.bootstrap_token());
+    let bootstrap_url = format!("{origin}/#token={}", state.sessions.bootstrap_token());
     let router = build_router(state.clone());
     let (shutdown, receiver) = tokio::sync::oneshot::channel();
     let handle = tokio::spawn(async move {

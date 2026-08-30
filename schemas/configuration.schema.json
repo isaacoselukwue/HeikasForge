@@ -65,6 +65,18 @@
     },
     "demonstration_mode": {
       "type": "boolean"
+    },
+    "repository_trust": {
+      "default": {
+        "state": "no_repository_configuration",
+        "configuration_digest": null,
+        "withheld": []
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/RepositoryTrustDecision"
+        }
+      ]
     }
   },
   "definitions": {
@@ -624,6 +636,68 @@
           "minimum": 0.0
         }
       }
+    },
+    "RepositoryTrustDecision": {
+      "type": "object",
+      "required": [
+        "state",
+        "withheld"
+      ],
+      "properties": {
+        "state": {
+          "$ref": "#/definitions/RepositoryTrustState"
+        },
+        "configuration_digest": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ContentDigest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "withheld": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WithheldSetting"
+          }
+        }
+      }
+    },
+    "RepositoryTrustState": {
+      "type": "string",
+      "enum": [
+        "no_repository_configuration",
+        "trusted",
+        "untrusted"
+      ]
+    },
+    "ContentDigest": {
+      "type": "string"
+    },
+    "WithheldSetting": {
+      "type": "object",
+      "required": [
+        "reason",
+        "setting"
+      ],
+      "properties": {
+        "setting": {
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/definitions/WithheldReason"
+        }
+      }
+    },
+    "WithheldReason": {
+      "type": "string",
+      "enum": [
+        "user_configuration_only",
+        "requires_repository_trust",
+        "would_weaken_policy"
+      ]
     }
   }
 }

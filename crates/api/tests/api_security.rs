@@ -30,6 +30,7 @@ impl Harness {
         let response = self
             .client
             .post(self.url("/api/v1/session"))
+            .header("origin", self.origin())
             .header("x-heikas-bootstrap", self.bootstrap_token())
             .send()
             .await
@@ -128,6 +129,7 @@ async fn an_incorrect_bootstrap_token_is_refused() {
     let response = harness
         .client
         .post(harness.url("/api/v1/session"))
+        .header("origin", harness.origin())
         .header("x-heikas-bootstrap", "0".repeat(64))
         .send()
         .await
@@ -142,6 +144,7 @@ async fn a_missing_bootstrap_token_is_refused() {
     let response = harness
         .client
         .post(harness.url("/api/v1/session"))
+        .header("origin", harness.origin())
         .send()
         .await
         .expect("the request completes");
@@ -155,6 +158,7 @@ async fn a_session_grants_read_access_and_sets_a_same_site_cookie() {
     let response = harness
         .client
         .post(harness.url("/api/v1/session"))
+        .header("origin", harness.origin())
         .header("x-heikas-bootstrap", harness.bootstrap_token())
         .send()
         .await
@@ -540,4 +544,164 @@ async fn the_graph_definition_is_public_and_stable() {
     assert_eq!(body["nodes"].as_array().expect("nodes").len(), 14);
     assert!(!body["edges"].as_array().expect("edges").is_empty());
     harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn the_current_session_route_requires_a_session_cookie() {
+    let harness = harness().await;
+    let anonymous = Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("the client builds");
+    let response = anonymous
+        .get(harness.url("/api/v1/session"))
+        .send()
+        .await
+        .expect("the request completes");
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "resuming a session must not be possible without the session cookie"
+    );
+
+    let _ = harness.establish().await;
+    let resumed = harness
+        .client
+        .get(harness.url("/api/v1/session"))
+        .send()
+        .await
+        .expect("the request completes");
+    assert_eq!(resumed.status(), StatusCode::OK);
+    harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_request_naming_a_foreign_host_is_refused() {
+    let harness = harness().await;
+    let response = harness
+        .client
+        .get(harness.url("/api/v1/health"))
+        .header("host", "attacker.example")
+        .send()
+        .await
+        .expect("the request completes");
+    assert_eq!(
+        response.status(),
+        StatusCode::FORBIDDEN,
+        "a rebound host name must be refused"
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn establishing_a_session_from_a_foreign_origin_is_refused() {
+    let harness = harness().await;
+    let response = harness
+        .client
+        .post(harness.url("/api/v1/session"))
+        .headers(origin_headers("http://attacker.example", None))
+        .header("x-heikas-bootstrap", harness.bootstrap_token())
+        .send()
+        .await
+        .expect("the request completes");
+    assert_eq!(
+        response.status(),
+        StatusCode::FORBIDDEN,
+        "the session route must apply the same origin check as every other mutation"
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn repeated_bootstrap_attempts_are_rate_limited() {
+    let harness = harness().await;
+    let mut limited = false;
+    for _ in 0..40 {
+        let response = harness
+            .client
+            .post(harness.url("/api/v1/session"))
+            .headers(origin_headers(&harness.origin(), None))
+            .header("x-heikas-bootstrap", "0".repeat(64))
+            .send()
+            .await
+            .expect("the request completes");
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            limited = true;
+            break;
+        }
+    }
+    assert!(
+        limited,
+        "guessing the bootstrap token must be rate limited rather than unbounded"
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_export_cannot_name_a_path_outside_the_run_directory() {
+    let harness = harness().await;
+    let csrf = harness.establish().await;
+    let run_id = uuid::Uuid::now_v7().to_string();
+
+    for attempt in [
+        "/etc/heikas-owned.zip",
+        "../../escape.zip",
+        "nested/archive.zip",
+        "archive.txt",
+        "..zip",
+    ] {
+        let response = harness
+            .client
+            .post(harness.url(&format!("/api/v1/runs/{run_id}/export")))
+            .headers(origin_headers(&harness.origin(), Some(&csrf)))
+            .json(&json!({ "file_name": attempt }))
+            .send()
+            .await
+            .expect("the request completes");
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "`{attempt}` must be refused as an archive name"
+        );
+    }
+
+    let accepted = harness
+        .client
+        .post(harness.url(&format!("/api/v1/runs/{run_id}/export")))
+        .headers(origin_headers(&harness.origin(), Some(&csrf)))
+        .json(&json!({ "file_name": "evidence.zip" }))
+        .send()
+        .await
+        .expect("the request completes");
+    assert_ne!(
+        accepted.status(),
+        StatusCode::BAD_REQUEST,
+        "an ordinary archive name must pass the boundary check"
+    );
+    assert!(
+        !std::path::Path::new("/etc/heikas-owned.zip").exists(),
+        "no request may create a file outside the run directory"
+    );
+    harness.shutdown().await;
+}
+
+#[tokio::test]
+async fn binding_every_interface_requires_an_explicit_public_origin() {
+    let home = TempDir::new().expect("a temporary home");
+    let runtime =
+        build_runtime(StoreLayout::new(home.path().to_path_buf())).expect("the runtime builds");
+    let outcome = start(
+        runtime,
+        ServerOptions {
+            port: 0,
+            bind_all_interfaces: true,
+            public_origin: None,
+            demonstration_mode: false,
+        },
+    )
+    .await;
+    assert!(
+        outcome.is_err(),
+        "binding every interface without a declared origin would disable the origin check"
+    );
 }

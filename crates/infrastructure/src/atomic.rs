@@ -5,7 +5,28 @@ use std::path::{Path, PathBuf};
 use heikas_application::error::{ApplicationError, ApplicationResult};
 
 pub fn ensure_directory(path: &Path) -> ApplicationResult<()> {
-    fs::create_dir_all(path).map_err(|error| storage(path, "create directory", error))
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder
+        .create(path)
+        .map_err(|error| storage(path, "create directory", error))
+}
+
+#[cfg(unix)]
+fn restrict_file(file: &File, path: &Path) -> ApplicationResult<()> {
+    use std::os::unix::fs::PermissionsExt;
+    file.set_permissions(fs::Permissions::from_mode(0o600))
+        .map_err(|error| storage(path, "restrict permissions on", error))
+}
+
+#[cfg(not(unix))]
+fn restrict_file(_file: &File, _path: &Path) -> ApplicationResult<()> {
+    Ok(())
 }
 
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> ApplicationResult<()> {
@@ -17,6 +38,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> ApplicationResult<()> {
     {
         let mut file =
             File::create(&temporary).map_err(|error| storage(&temporary, "create", error))?;
+        restrict_file(&file, &temporary)?;
         file.write_all(bytes)
             .map_err(|error| storage(&temporary, "write", error))?;
         file.flush()
@@ -57,9 +79,14 @@ pub fn append_line_synchronised(path: &Path, line: &[u8]) -> ApplicationResult<(
         ApplicationError::Storage(format!("`{}` has no parent directory", path.display()))
     })?;
     ensure_directory(parent)?;
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options
         .open(path)
         .map_err(|error| storage(path, "open for append", error))?;
     file.write_all(line)

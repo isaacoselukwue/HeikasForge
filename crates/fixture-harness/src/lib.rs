@@ -5,10 +5,13 @@ use std::sync::Arc;
 use heikas_application::configuration::EffectiveConfiguration;
 use heikas_application::engine::DispatchOutcome;
 use heikas_application::model::request::CreateRunRequest;
+use heikas_application::ports::clock::Clock;
 use heikas_application::usecases::ApplicationService;
-use heikas_domain::identity::RunId;
+use heikas_domain::identity::{ContentDigest, RunId};
 use heikas_domain::state::RunProjection;
+use heikas_infrastructure::configuration::FileRepositoryTrustStore;
 use heikas_infrastructure::layout::StoreLayout;
+use heikas_infrastructure::system::SystemClock;
 use heikas_infrastructure::{build_runtime, Runtime};
 use serde_json::{json, Value};
 use tempfile::TempDir;
@@ -131,7 +134,7 @@ pub fn build_scenario(script: Value, repair_budget: u32, candidates: u8) -> Scen
             "model = \"heikas-deterministic-fixture-1.0\"",
             &format!(
                 "model = \"heikas-deterministic-fixture-1.0\"\nfixture_script = \"{}\"",
-                script_path.display()
+                script_path.display().to_string().replace('\\', "/")
             ),
         )
         .replace(
@@ -161,7 +164,8 @@ pub fn build_scenario(script: Value, repair_budget: u32, candidates: u8) -> Scen
     );
 
     let layout = StoreLayout::new(home.path().to_path_buf());
-    let runtime = build_runtime(layout).expect("the runtime builds");
+    let runtime = build_runtime(layout.clone()).expect("the runtime builds");
+    trust_fixture_configuration(&layout, &repository, &configuration_path);
 
     Scenario {
         home,
@@ -170,6 +174,17 @@ pub fn build_scenario(script: Value, repair_budget: u32, candidates: u8) -> Scen
         script: script_path,
         runtime,
     }
+}
+
+fn trust_fixture_configuration(layout: &StoreLayout, repository: &Path, configuration: &Path) {
+    let bytes = std::fs::read(configuration).expect("the configuration reads");
+    FileRepositoryTrustStore::new(layout)
+        .grant(
+            repository,
+            ContentDigest::of_bytes(&bytes),
+            SystemClock.now(),
+        )
+        .expect("the fixture configuration is trusted");
 }
 
 fn copy_fixture(source: &Path, destination: &Path) {

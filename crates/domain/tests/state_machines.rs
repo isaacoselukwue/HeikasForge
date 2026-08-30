@@ -259,3 +259,37 @@ fn backoff_grows_and_is_capped() {
     assert!(policy.delay_with_jitter(3, 0.0).as_millis() == 0);
     assert_eq!(policy.delay_with_jitter(3, 1.0), policy.base_delay(3));
 }
+
+#[test]
+fn an_operator_written_pattern_is_matched_by_the_same_glob_engine_everywhere() {
+    use heikas_domain::path_policy::{
+        evaluate_path, GlobPatternMatcher, PathAccess, PathPolicy, RelativeWorkspacePath,
+    };
+
+    let policy = PathPolicy {
+        protected_patterns: vec![
+            ".github/**/*.yml".to_string(),
+            "infra/*/secrets.tf".to_string(),
+            "deploy/**/*.sh".to_string(),
+        ],
+        sensitive_patterns: Vec::new(),
+        approved_protected_paths: Vec::new(),
+        maximum_read_bytes: 1_048_576,
+        maximum_write_bytes: 4_194_304,
+    };
+
+    for protected in [
+        ".github/workflows/ci.yml",
+        "infra/production/secrets.tf",
+        "deploy/staging/release.sh",
+    ] {
+        let path = RelativeWorkspacePath::parse(protected).expect("a relative path");
+        assert!(
+            evaluate_path(&policy, &GlobPatternMatcher, &path, PathAccess::Write).is_err(),
+            "`{protected}` must be refused for writing"
+        );
+    }
+
+    let permitted = RelativeWorkspacePath::parse("src/main.rs").expect("a relative path");
+    assert!(evaluate_path(&policy, &GlobPatternMatcher, &permitted, PathAccess::Write).is_ok());
+}

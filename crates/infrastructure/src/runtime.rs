@@ -66,7 +66,7 @@ impl RuntimeFactory for AdapterRuntimeFactory {
                 kind,
                 configuration.agent.clone(),
                 Arc::clone(&self.processes),
-            ))),
+            )?)),
         }
     }
 

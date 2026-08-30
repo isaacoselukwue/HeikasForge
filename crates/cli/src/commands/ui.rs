@@ -19,6 +19,7 @@ pub struct InterfaceOptions {
     pub open_browser: bool,
     pub demonstration: bool,
     pub bind_all_interfaces: bool,
+    pub public_origin: Option<String>,
 }
 
 pub async fn serve(
@@ -30,6 +31,7 @@ pub async fn serve(
         ServerOptions {
             port: options.port,
             bind_all_interfaces: options.bind_all_interfaces,
+            public_origin: options.public_origin.clone(),
             demonstration_mode: options.demonstration,
         },
     )

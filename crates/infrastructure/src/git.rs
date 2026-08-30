@@ -20,6 +20,7 @@ use crate::layout::StoreLayout;
 
 const GIT_TIMEOUT_SECONDS: u32 = 300;
 const GIT_OUTPUT_LIMIT: u64 = 33_554_432;
+const MAXIMUM_SNAPSHOT_FILE_BYTES: u64 = 16_777_216;
 
 pub struct CommandLineGitService {
     processes: Arc<dyn ProcessRunner>,
@@ -63,6 +64,7 @@ impl CommandLineGitService {
             args: arguments,
             working_directory: working_directory.to_path_buf(),
             environment,
+            stdin: None,
             timeout_seconds: GIT_TIMEOUT_SECONDS,
             max_output_bytes: GIT_OUTPUT_LIMIT,
             label: format!("git {}", args.first().copied().unwrap_or("")),
@@ -273,8 +275,16 @@ impl GitService for CommandLineGitService {
                 .compression_method(zip::CompressionMethod::Deflated);
             for path in &facts.untracked_paths {
                 let absolute = facts.root.join(path);
-                if !absolute.is_file() {
+                let Ok(metadata) = std::fs::symlink_metadata(&absolute) else {
                     continue;
+                };
+                if !metadata.is_file() {
+                    continue;
+                }
+                if metadata.len() > MAXIMUM_SNAPSHOT_FILE_BYTES {
+                    return Err(ApplicationError::InvalidConfiguration(format!(
+                        "the untracked file `{path}` is larger than the {MAXIMUM_SNAPSHOT_FILE_BYTES} byte snapshot limit"
+                    )));
                 }
                 let mut contents = Vec::new();
                 std::fs::File::open(&absolute)
