@@ -1,8 +1,8 @@
 # Worktree lifecycle
 
-## Deterministic checkout
+## Line endings belong to the user
 
-Every Git invocation the service makes carries per-invocation overrides that turn off line ending translation. A candidate worktree therefore holds exactly the bytes of the baseline commit on every platform, so diffs, changed line counts and content hashes mean the same thing on Windows as they do elsewhere. Nothing in the user's own Git configuration is modified: the settings are supplied on the command line for the duration of each call.
+The service never overrides the repository's line ending configuration, not even for the worktrees it creates itself. A checkout, a snapshot restore and a patch application all honour whatever the user has configured, so the bytes Heikas Forge commits are the bytes that repository would normally hold. Every candidate and the integration worktree share that single configuration, so a diff, a changed line count and a content hash remain comparable within a run. Tests that assert file content therefore compare text rather than raw bytes, because the correct bytes differ by platform configuration.
 
 ## Baseline
 

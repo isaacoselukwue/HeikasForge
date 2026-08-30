@@ -139,14 +139,8 @@ async fn a_dirty_snapshot_captures_tracked_and_untracked_changes() {
         .apply_snapshot(&handle.path, &snapshot)
         .await
         .expect("the snapshot applies");
-    assert_eq!(
-        std::fs::read_to_string(handle.path.join("value.txt")).expect("the file reads"),
-        "changed\n"
-    );
-    assert_eq!(
-        std::fs::read_to_string(handle.path.join("extra.txt")).expect("the file reads"),
-        "brand new\n"
-    );
+    assert_eq!(text_of(&handle.path.join("value.txt")), "changed\n");
+    assert_eq!(text_of(&handle.path.join("extra.txt")), "brand new\n");
 }
 
 #[tokio::test]
@@ -184,9 +178,10 @@ async fn candidate_worktrees_are_isolated_and_diff_independently() {
     }
 
     for (index, handle) in worktrees.iter().enumerate() {
-        let content =
-            std::fs::read_to_string(handle.path.join("value.txt")).expect("the file reads");
-        assert_eq!(content, format!("candidate {}\n", index + 1));
+        assert_eq!(
+            text_of(&handle.path.join("value.txt")),
+            format!("candidate {}\n", index + 1)
+        );
         let (patch, summary) = harness
             .service
             .diff_against_baseline(&handle.path, &facts.head_commit)
@@ -197,9 +192,11 @@ async fn candidate_worktrees_are_isolated_and_diff_independently() {
         assert!(String::from_utf8_lossy(&patch).contains(&format!("candidate {}", index + 1)));
     }
 
-    let source =
-        std::fs::read_to_string(harness.repository.join("value.txt")).expect("the file reads");
-    assert_eq!(source, "one\n", "the source worktree must remain untouched");
+    assert_eq!(
+        text_of(&harness.repository.join("value.txt")),
+        "one\n",
+        "the source worktree must remain untouched"
+    );
 }
 
 #[tokio::test]
@@ -302,10 +299,7 @@ async fn a_patch_applies_to_a_clean_integration_worktree_and_conflicts_are_detec
         .apply_patch(&integration.path, &patch)
         .await
         .expect("the patch applies");
-    assert_eq!(
-        std::fs::read_to_string(integration.path.join("value.txt")).expect("the file reads"),
-        "patched\n"
-    );
+    assert_eq!(text_of(&integration.path.join("value.txt")), "patched\n");
 
     let conflicting = harness
         .service
@@ -348,10 +342,7 @@ async fn resetting_an_integration_worktree_restores_the_baseline() {
         .reset_worktree(&integration.path, &facts.head_commit)
         .await
         .expect("the worktree resets");
-    assert_eq!(
-        std::fs::read_to_string(integration.path.join("value.txt")).expect("the file reads"),
-        "one\n"
-    );
+    assert_eq!(text_of(&integration.path.join("value.txt")), "one\n");
     assert!(!integration.path.join("stray.txt").exists());
 }
 
@@ -533,4 +524,10 @@ async fn a_dirty_snapshot_never_follows_a_symbolic_link_out_of_the_repository() 
         !combined.contains("PRIVATE MATERIAL"),
         "a symbolic link must never be dereferenced into the candidate worktrees"
     );
+}
+
+fn text_of(path: &std::path::Path) -> String {
+    std::fs::read_to_string(path)
+        .expect("the file reads")
+        .replace("\r\n", "\n")
 }

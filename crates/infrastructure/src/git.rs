@@ -21,8 +21,6 @@ use crate::layout::StoreLayout;
 const GIT_TIMEOUT_SECONDS: u32 = 300;
 const GIT_OUTPUT_LIMIT: u64 = 33_554_432;
 const MAXIMUM_SNAPSHOT_FILE_BYTES: u64 = 16_777_216;
-const DETERMINISTIC_GIT_SETTINGS: [&str; 3] =
-    ["core.autocrlf=false", "core.eol=lf", "core.safecrlf=false"];
 
 pub struct CommandLineGitService {
     processes: Arc<dyn ProcessRunner>,
@@ -60,10 +58,6 @@ impl CommandLineGitService {
     ) -> ApplicationResult<ProcessOutcome> {
         let (_sender, receiver) = watch::channel(false);
         let mut arguments = vec!["--no-pager".to_string()];
-        for override_setting in DETERMINISTIC_GIT_SETTINGS {
-            arguments.push("-c".to_string());
-            arguments.push(override_setting.to_string());
-        }
         arguments.extend(args.iter().map(|value| (*value).to_string()));
         let request = ProcessRequest {
             program: "git".to_string(),
