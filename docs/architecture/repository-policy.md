@@ -29,7 +29,7 @@ These exemptions are configured centrally rather than with inline suppressions.
 - The dictionary file at `crates/policy/dictionary.toml` is never scanned by the spelling rule, because it necessarily contains the discouraged spellings it detects.
 - The dictionary carries a list of protocol identifiers such as HTTP header names. A literal that is exactly one of them, or that begins with one followed by a colon, is exempt, because renaming a third-party API identifier would be incorrect.
 - A string literal that looks like a regular expression is exempt from the spelling rule, because a pattern is not prose.
-- The leakage rule never scans its own source at `crates/policy/src/rules/leakage.rs`, because that file necessarily contains the path prefixes and token shapes it detects.
+- The leakage rule never scans its own source at `crates/policy/src/rules/leakage.rs`, nor its own test at `crates/policy/tests/leakage_rules.rs`, because both files necessarily contain the path prefixes and token shapes the rule detects. The samples in the test are synthetic and name no real account.
 - The leakage rule discriminates a real secret from a pattern definition or a documented sample by structure rather than by an exemption list. A candidate value must have at least eight distinct characters, must not be a monotonic character run, and must not contain a documented sample marker such as `EXAMPLE`. A private key is reported only when a well-formed header line is followed by enough encoded body to be real key material, so a regular expression that merely describes the header is never reported.
 
 Generated files, the embedded asset directory, the documentation media and the fixtures are excluded from the first-party source rules.

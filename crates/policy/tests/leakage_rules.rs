@@ -45,7 +45,7 @@ fn a_committed_runtime_descriptor_is_a_violation() {
         concat!(
             "{\n",
             "  \"bootstrapUrl\": \"http://127.0.0.1:33749/#token=bfee6b3f8c43530ece55db2b3dbcaa902d90905105617d744582f4e0cdeda703\",\n",
-            "  \"heikasHome\": \"/home/ajay/Codes/HeikasForge/target/demonstration/home\",\n",
+            "  \"heikasHome\": \"/home/dana/Codes/HeikasForge/target/demonstration/home\",\n",
             "  \"serverPid\": 12345\n",
             "}\n"
         ),
@@ -103,12 +103,12 @@ fn a_placeholder_home_directory_is_permitted_but_a_real_account_is_not() {
     assert_eq!(host_account("/home/you/projects/app"), None);
     assert_eq!(host_account("/home/runner/work/repo"), None);
     assert_eq!(
-        host_account("/home/ajay/Codes/HeikasForge"),
-        Some("ajay".to_string())
+        host_account("/home/dana/Codes/HeikasForge"),
+        Some("dana".to_string())
     );
     assert_eq!(
-        host_account("C:\\Users\\Isaac\\Codes"),
-        Some("Isaac".to_string())
+        host_account("C:\\Users\\Morgan\\Codes"),
+        Some("Morgan".to_string())
     );
 }
 

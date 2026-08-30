@@ -7,6 +7,7 @@ pub const HOST_PATH_RULE: &str = "leakage.no-host-paths";
 pub const SECRET_RULE: &str = "leakage.no-secret-material";
 
 pub const RULE_SOURCE_PATH: &str = "crates/policy/src/rules/leakage.rs";
+pub const RULE_TEST_PATH: &str = "crates/policy/tests/leakage_rules.rs";
 
 pub const PLACEHOLDER_ACCOUNTS: [&str; 8] = [
     "you", "operator", "user", "username", "runner", "ci", "example", "someone",
@@ -20,6 +21,7 @@ pub fn check(repository: &TrackedRepository) -> PolicyResult<Vec<PolicyFinding>>
         if !is_tracked_text(path)
             || path == crate::rules::spelling::DICTIONARY_PATH
             || path == RULE_SOURCE_PATH
+            || path == RULE_TEST_PATH
         {
             continue;
         }
