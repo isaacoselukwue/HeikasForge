@@ -1,5 +1,9 @@
 # Worktree lifecycle
 
+## Deterministic checkout
+
+Every Git invocation the service makes carries per-invocation overrides that turn off line ending translation. A candidate worktree therefore holds exactly the bytes of the baseline commit on every platform, so diffs, changed line counts and content hashes mean the same thing on Windows as they do elsewhere. Nothing in the user's own Git configuration is modified: the settings are supplied on the command line for the duration of each call.
+
 ## Baseline
 
 Every candidate starts from one immutable baseline commit. When the operator opts into including uncommitted work, a binary patch of tracked changes and a compressed archive of untracked files are captured once and stored as run artefacts, then applied identically to every candidate worktree. The user's branch is never committed to in order to take that snapshot.
