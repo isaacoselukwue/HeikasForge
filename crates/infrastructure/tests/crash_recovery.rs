@@ -117,7 +117,12 @@ async fn a_crash_after_the_terminal_event_is_repaired_by_replay_without_rerunnin
     scenario.dispatch(run).await;
 
     let complete = scenario.projection(run).await;
-    assert_eq!(complete.status, RunStatus::AwaitingPlanApproval);
+    assert_eq!(
+        complete.status,
+        RunStatus::AwaitingPlanApproval,
+        "{}",
+        scenario.describe(run).await
+    );
     let full_sequence = complete.last_event_sequence;
 
     let rewound = heikas_domain::state::replay(
@@ -329,9 +334,10 @@ fn a_forced_process_exit_leaves_a_recoverable_run() {
         .output()
         .expect("the resume runs");
     let code = resumed.status.code().unwrap_or(-1);
+    let projection = std::fs::read_to_string(run_directory.join("state.json")).unwrap_or_default();
     assert!(
         code == 0 || code == 3,
-        "resume must recover the run, exit code {code}, stderr {}",
+        "resume must recover the run, exit code {code}, stderr {}, projection {projection}",
         String::from_utf8_lossy(&resumed.stderr)
     );
 

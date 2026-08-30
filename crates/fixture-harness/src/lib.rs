@@ -61,6 +61,27 @@ impl Scenario {
             .expect("the projection loads")
     }
 
+    pub async fn describe(&self, run: RunId) -> String {
+        let projection = self.projection(run).await;
+        let mut description = format!("status {}", projection.status.as_str());
+        if let Some(reason) = &projection.recovery_reason {
+            description.push_str(&format!(", recovery reason: {reason}"));
+        }
+        if let Some(summary) = &projection.last_event_summary {
+            description.push_str(&format!(", last event: {summary}"));
+        }
+        for attempt in &projection.attempts {
+            description.push_str(&format!(
+                ", attempt {:?}/{:?} {:?}",
+                attempt.node_id, attempt.attempt, attempt.status
+            ));
+            if let Some(summary) = &attempt.failure_summary {
+                description.push_str(&format!(" ({summary})"));
+            }
+        }
+        description
+    }
+
     pub async fn create_run(&self, candidates: u8) -> RunId {
         let mut request = CreateRunRequest::new(
             self.repository.clone(),
@@ -337,7 +358,7 @@ pub fn script(steps: Vec<Value>) -> Value {
 }
 
 pub async fn approve_plan(scenario: &Scenario, run: RunId) {
-    scenario
+    if let Err(error) = scenario
         .service()
         .approve_plan(
             run,
@@ -345,5 +366,10 @@ pub async fn approve_plan(scenario: &Scenario, run: RunId) {
             Some("approved by the integration test".to_string()),
         )
         .await
-        .expect("the plan approves");
+    {
+        panic!(
+            "the plan must approve but failed with `{error}`: {}",
+            scenario.describe(run).await
+        );
+    }
 }
