@@ -289,22 +289,29 @@ fn a_forced_process_exit_leaves_a_recoverable_run() {
         .spawn()
         .expect("the orchestrator starts");
 
-    std::thread::sleep(Duration::from_millis(450));
-    child.kill().expect("the process is killed");
-    let _ = child.wait();
-
     let runs_directory = scenario.home.path().join("runs");
     let mut attempts = 0;
     let run_directory = loop {
-        if let Ok(entries) = std::fs::read_dir(&runs_directory) {
-            if let Some(entry) = entries.filter_map(Result::ok).next() {
-                break entry.path();
+        let candidate = std::fs::read_dir(&runs_directory)
+            .ok()
+            .and_then(|entries| entries.filter_map(Result::ok).next())
+            .map(|entry| entry.path());
+        if let Some(candidate) = candidate {
+            if candidate.join("events.jsonl").is_file() {
+                break candidate;
             }
         }
         attempts += 1;
-        assert!(attempts < 50, "the run directory was never created");
+        assert!(
+            attempts < 300,
+            "the run never reached its first durable event"
+        );
         std::thread::sleep(Duration::from_millis(100));
     };
+
+    child.kill().expect("the process is killed");
+    let _ = child.wait();
+
     let run_id = run_directory
         .file_name()
         .expect("a run directory name")
