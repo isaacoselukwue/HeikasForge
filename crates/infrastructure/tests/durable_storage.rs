@@ -338,6 +338,7 @@ fn sample_configuration() -> heikas_application::configuration::EffectiveConfigu
         environment_allowlist: Vec::new(),
         demonstration_mode: true,
         repository_trust: Default::default(),
+        command_source: Default::default(),
     }
 }
 

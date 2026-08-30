@@ -49,6 +49,7 @@ fn configuration(repository: &std::path::Path) -> EffectiveConfiguration {
         environment_allowlist: Vec::new(),
         demonstration_mode: true,
         repository_trust: Default::default(),
+        command_source: Default::default(),
     }
 }
 

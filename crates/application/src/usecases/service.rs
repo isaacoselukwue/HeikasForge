@@ -1,9 +1,14 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use heikas_domain::budget::{CandidateCount, RunBudgets};
+use heikas_domain::clock::TimeoutSeconds;
 use heikas_domain::clock::Timestamp;
+use heikas_domain::command::{
+    CommandId, CommandSpecification, ReportFormat, MAXIMUM_COMMAND_TIMEOUT_SECONDS,
+};
 use heikas_domain::event::{DurableEvent, EventPayload};
 use heikas_domain::identity::{ContentDigest, RunId};
 use heikas_domain::plan::{ApprovalDecision, PlanAuthor};
@@ -12,13 +17,13 @@ use heikas_domain::state::RunProjection;
 use tokio::sync::{watch, Mutex};
 use tracing::{info, warn};
 
-use crate::configuration::EffectiveConfiguration;
+use crate::configuration::{CommandCatalogueSource, EffectiveConfiguration};
 use crate::engine::context::task_title_of;
 use crate::engine::{dispatch_run, DispatchOutcome, EngineServices};
 use crate::error::{ApplicationError, ApplicationResult};
 use crate::model::detail::{EventPage, RunDetail};
 use crate::model::doctor::DoctorReport;
-use crate::model::request::{CreateRunRequest, ExportRequest};
+use crate::model::request::{CommandDeclaration, CreateRunRequest, ExportRequest};
 use crate::model::run_summary::{CandidateView, RunSummary, TimelineEntry};
 use crate::ports::clock::{Clock, IdentifierFactory, LocalIdentity};
 use crate::ports::environment::HostEnvironment;
@@ -103,7 +108,19 @@ impl ApplicationService {
         })
     }
 
+    pub async fn admit_repository(&self, path: &Path) -> ApplicationResult<()> {
+        if !path.is_absolute() {
+            return Err(ApplicationError::RepositoryUnusable {
+                path: path.display().to_string(),
+                detail: "the repository path must be absolute, because a relative path would be resolved against whichever directory this process was started in".to_string(),
+            });
+        }
+        self.base.git.inspect(path).await?;
+        Ok(())
+    }
+
     pub async fn create_run(&self, request: CreateRunRequest) -> ApplicationResult<RunId> {
+        self.admit_repository(&request.repository_path).await?;
         let mut configuration = self.configuration.resolve(&request).await?;
         apply_request_overrides(&mut configuration, &request)?;
         configuration.validate()?;
@@ -609,5 +626,57 @@ fn apply_request_overrides(
         configuration.agent.driver = driver.parse()?;
     }
     configuration.demonstration_mode = request.demonstration_mode;
+    apply_command_declarations(configuration, &request.command_declarations)?;
+    Ok(())
+}
+
+const MAXIMUM_COMMAND_DECLARATIONS: usize = 16;
+
+fn apply_command_declarations(
+    configuration: &mut EffectiveConfiguration,
+    declarations: &[CommandDeclaration],
+) -> ApplicationResult<()> {
+    if declarations.is_empty() {
+        return Ok(());
+    }
+    if declarations.len() > MAXIMUM_COMMAND_DECLARATIONS {
+        return Err(ApplicationError::InvalidConfiguration(format!(
+            "at most {MAXIMUM_COMMAND_DECLARATIONS} commands may be declared for a single run, but {} were supplied",
+            declarations.len()
+        )));
+    }
+    for declaration in declarations {
+        if declaration.program.contains('/') || declaration.program.contains('\\') {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "the declared command `{}` names a path. Give the name of an executable on the search path so that it cannot be resolved against whichever directory this process was started in.",
+                declaration.program
+            )));
+        }
+        let identifier = format!("declared-{}", declaration.kind.as_str());
+        let command_id = CommandId::from_str(&identifier)?;
+        let specification = CommandSpecification {
+            id: command_id.clone(),
+            kind: declaration.kind,
+            program: declaration.program.clone(),
+            args: declaration.args.clone(),
+            working_subdirectory: None,
+            timeout: TimeoutSeconds::clamped(
+                declaration.timeout_seconds.unwrap_or(900),
+                MAXIMUM_COMMAND_TIMEOUT_SECONDS,
+            ),
+            required: true,
+            report_format: ReportFormat::None,
+            report_path: None,
+            environment: Vec::new(),
+            success_exit_codes: vec![0],
+        };
+        specification.validate()?;
+        configuration
+            .commands
+            .commands
+            .retain(|existing| existing.id != command_id);
+        configuration.commands.commands.push(specification);
+    }
+    configuration.command_source = CommandCatalogueSource::DeclaredForThisRun;
     Ok(())
 }

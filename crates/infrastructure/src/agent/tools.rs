@@ -688,11 +688,11 @@ impl ToolExecutor {
                 "the command `{command_id}` is not configured"
             )));
         };
-        let request = ProcessRequest::from_specification(
+        let request = crate::process::request_for_command(
             specification,
             &self.worktree,
             self.output_budget_bytes.min(1_048_576),
-        );
+        )?;
         let outcome = self
             .processes
             .run(request, self.cancellation.clone())

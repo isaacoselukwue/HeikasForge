@@ -59,6 +59,7 @@ fn configuration(
         environment_allowlist: Vec::new(),
         demonstration_mode: false,
         repository_trust: Default::default(),
+        command_source: Default::default(),
     }
 }
 

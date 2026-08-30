@@ -77,6 +77,17 @@
           "$ref": "#/definitions/RepositoryTrustDecision"
         }
       ]
+    },
+    "command_source": {
+      "default": {
+        "kind": "nothing_detected",
+        "detail": []
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/CommandCatalogueSource"
+        }
+      ]
     }
   },
   "definitions": {
@@ -697,6 +708,91 @@
         "user_configuration_only",
         "requires_repository_trust",
         "would_weaken_policy"
+      ]
+    },
+    "CommandCatalogueSource": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "user_configuration"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "repository_configuration"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "detected"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "detail",
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "nothing_detected"
+              ]
+            },
+            "detail": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "declared_for_this_run"
+              ]
+            }
+          }
+        }
       ]
     }
   }

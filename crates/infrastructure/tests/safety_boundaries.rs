@@ -557,3 +557,65 @@ fn a_non_loopback_model_endpoint_is_refused_by_the_default_network_policy() {
             .is_ok()
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn a_working_subdirectory_that_leaves_the_worktree_is_refused() {
+    let directory = worktree();
+    let outside = TempDir::new().expect("a directory outside the worktree");
+    std::fs::create_dir_all(outside.path().join("live")).expect("the directory creates");
+    std::os::unix::fs::symlink(
+        outside.path().join("live"),
+        directory.path().join("packages"),
+    )
+    .expect("the link creates");
+
+    let outcome = heikas_infrastructure::paths::confined_working_directory(
+        directory.path(),
+        Some("packages"),
+    );
+    assert!(
+        outcome.is_err(),
+        "a symbolically linked working subdirectory must never be entered"
+    );
+
+    let permitted =
+        heikas_infrastructure::paths::confined_working_directory(directory.path(), Some("src"))
+            .expect("an ordinary subdirectory resolves");
+    assert!(permitted.ends_with("src"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_report_path_that_points_outside_the_worktree_is_refused() {
+    let directory = worktree();
+    let outside = TempDir::new().expect("a directory outside the worktree");
+    let secret = outside.path().join("id_ed25519");
+    std::fs::write(&secret, "PRIVATE MATERIAL\n").expect("the secret writes");
+    std::fs::create_dir_all(directory.path().join("reports")).expect("the directory creates");
+    std::os::unix::fs::symlink(&secret, directory.path().join("reports").join("junit.xml"))
+        .expect("the link creates");
+
+    let outcome = heikas_infrastructure::paths::read_confined_file(
+        directory.path(),
+        "reports/junit.xml",
+        heikas_infrastructure::paths::MAXIMUM_REPOSITORY_REPORT_BYTES,
+    );
+    assert!(
+        outcome.is_err(),
+        "a report that is a symbolic link must never be read into run evidence"
+    );
+}
+
+#[test]
+fn a_relative_program_naming_a_path_is_never_resolved_against_the_current_directory() {
+    assert!(
+        heikas_infrastructure::process::resolve_on_path("./gradlew").is_none(),
+        "a repository resident wrapper must not be resolved against the ambient directory"
+    );
+    assert!(heikas_infrastructure::process::resolve_on_path("scripts/build.sh").is_none());
+    assert!(
+        heikas_infrastructure::process::resolve_on_path("git").is_some(),
+        "an ordinary tool name must still resolve on the executable search path"
+    );
+}

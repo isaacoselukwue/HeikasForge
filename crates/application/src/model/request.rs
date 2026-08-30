@@ -1,8 +1,19 @@
 use std::path::PathBuf;
 
 use heikas_domain::budget::QualityProfile;
+use heikas_domain::command::CommandKind;
 use heikas_domain::run::CommitPolicy;
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct CommandDeclaration {
+    pub kind: CommandKind,
+    pub program: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub timeout_seconds: Option<u32>,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct CreateRunRequest {
@@ -19,6 +30,8 @@ pub struct CreateRunRequest {
     pub agent_model: Option<String>,
     pub demonstration_mode: bool,
     pub wall_clock_seconds: Option<u32>,
+    #[serde(default)]
+    pub command_declarations: Vec<CommandDeclaration>,
 }
 
 impl CreateRunRequest {
@@ -37,6 +50,7 @@ impl CreateRunRequest {
             agent_model: None,
             demonstration_mode: false,
             wall_clock_seconds: None,
+            command_declarations: Vec::new(),
         }
     }
 }

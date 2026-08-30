@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -108,4 +109,87 @@ pub fn relative_within(root: &Path, absolute: &Path) -> Option<String> {
         .strip_prefix(root)
         .ok()
         .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+}
+
+pub const MAXIMUM_REPOSITORY_CONFIGURATION_BYTES: u64 = 65_536;
+pub const MAXIMUM_REPOSITORY_REPORT_BYTES: u64 = 16_777_216;
+
+pub fn read_confined_file(
+    root: &Path,
+    relative: &str,
+    maximum_bytes: u64,
+) -> ApplicationResult<Option<Vec<u8>>> {
+    let parsed = RelativeWorkspacePath::parse(relative)?;
+    let resolved_root = canonical_root(root)?;
+    let candidate = resolved_root.join(parsed.as_str());
+
+    let metadata = match std::fs::symlink_metadata(&candidate) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(crate::atomic::storage(&candidate, "inspect", error)),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err(ApplicationError::PolicyViolation(format!(
+            "`{relative}` is a symbolic link, which is never followed when reading from a repository"
+        )));
+    }
+    if !metadata.is_file() {
+        return Err(ApplicationError::PolicyViolation(format!(
+            "`{relative}` is not a regular file, so it is not read"
+        )));
+    }
+    if metadata.len() > maximum_bytes {
+        return Err(ApplicationError::PolicyViolation(format!(
+            "`{relative}` is {} bytes, which exceeds the {maximum_bytes} byte limit for a repository file",
+            metadata.len()
+        )));
+    }
+
+    let resolved = canonical_root(&candidate)?;
+    if !resolved.starts_with(&resolved_root) {
+        return Err(ApplicationError::Domain(DomainError::PathEscapesWorktree {
+            path: relative.to_string(),
+        }));
+    }
+
+    let mut file = std::fs::File::open(&resolved)
+        .map_err(|error| crate::atomic::storage(&resolved, "open", error))?;
+    let mut contents = Vec::new();
+    std::io::Read::by_ref(&mut file)
+        .take(maximum_bytes.saturating_add(1))
+        .read_to_end(&mut contents)
+        .map_err(|error| crate::atomic::storage(&resolved, "read", error))?;
+    if contents.len() as u64 > maximum_bytes {
+        return Err(ApplicationError::PolicyViolation(format!(
+            "`{relative}` grew beyond the {maximum_bytes} byte limit while it was being read"
+        )));
+    }
+    Ok(Some(contents))
+}
+
+pub fn confined_working_directory(
+    worktree: &Path,
+    subdirectory: Option<&str>,
+) -> ApplicationResult<PathBuf> {
+    let resolved_root = canonical_root(worktree)?;
+    let Some(subdirectory) = subdirectory else {
+        return Ok(resolved_root);
+    };
+    let parsed = RelativeWorkspacePath::parse(subdirectory)?;
+    let candidate = resolved_root.join(parsed.as_str());
+    if std::fs::symlink_metadata(&candidate)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(ApplicationError::PolicyViolation(format!(
+            "the working subdirectory `{subdirectory}` is a symbolic link, which may not be entered"
+        )));
+    }
+    let resolved = resolve_without_escape(&resolved_root, &candidate)?;
+    if !resolved.is_dir() {
+        return Err(ApplicationError::InvalidConfiguration(format!(
+            "the working subdirectory `{subdirectory}` does not exist in the worktree"
+        )));
+    }
+    Ok(resolved)
 }

@@ -135,9 +135,9 @@ impl ApplicationError {
             ApplicationError::RunLocked(run) => Some(format!(
                 "Another dispatcher holds the lock for run {run}. Wait for it to finish or stop that process."
             )),
-            ApplicationError::RepositoryUnusable { detail, .. } => Some(format!(
-                "Resolve the repository state and run `heikas doctor` again. {detail}"
-            )),
+            ApplicationError::RepositoryUnusable { .. } => {
+                Some("Point Heikas Forge at a Git working tree, or run `git init` there first.".to_string())
+            }
             ApplicationError::InvalidConfiguration(_) => Some(
                 "Run `heikas doctor` to see which configuration entry is rejected.".to_string(),
             ),

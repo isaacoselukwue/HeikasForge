@@ -2,9 +2,11 @@ use std::path::{Path, PathBuf};
 
 use heikas_application::engine::DispatchOutcome;
 use heikas_application::error::{ApplicationError, ApplicationResult};
-use heikas_application::model::request::CreateRunRequest;
+use heikas_application::model::request::{CommandDeclaration, CreateRunRequest};
+use heikas_domain::command::CommandKind;
 use heikas_domain::identity::RunId;
 use serde::Serialize;
+use std::str::FromStr;
 
 use crate::arguments::{CommitPolicyArgument, QualityProfileArgument};
 use crate::context::CommandContext;
@@ -35,6 +37,9 @@ pub struct RunOptions<'a> {
     pub wall_clock_seconds: Option<u32>,
     pub demonstration: bool,
     pub dispatch: bool,
+    pub commands: Vec<String>,
+    pub command_arguments: Vec<String>,
+    pub command_timeouts: Vec<String>,
 }
 
 pub async fn create_and_dispatch(
@@ -71,6 +76,11 @@ pub async fn create_and_dispatch(
     request.agent_model = options.model.clone();
     request.wall_clock_seconds = options.wall_clock_seconds;
     request.demonstration_mode = options.demonstration;
+    request.command_declarations = build_command_declarations(
+        &options.commands,
+        &options.command_arguments,
+        &options.command_timeouts,
+    )?;
 
     let run_id = context.service().create_run(request).await?;
     context.note(&format!("Run {run_id} created."));
@@ -216,4 +226,75 @@ pub async fn report_dispatch(
         DispatchOutcome::Blocked(_) => ExitCode::RecoveryRequired,
         _ => ExitCode::for_status(projection.status),
     })
+}
+
+fn split_declaration(value: &str, flag: &str) -> ApplicationResult<(CommandKind, String)> {
+    let Some((kind, remainder)) = value.split_once('=') else {
+        return Err(ApplicationError::InvalidConfiguration(format!(
+            "`--{flag} {value}` must be written as KIND=VALUE, for example `--{flag} test=pytest`"
+        )));
+    };
+    let parsed = CommandKind::from_str(kind.trim()).map_err(|_| {
+        ApplicationError::InvalidConfiguration(format!(
+            "`{kind}` is not a command kind. Use one of format, lint, test, coverage, audit, secret-scan, static-analysis, policy or build."
+        ))
+    })?;
+    if remainder.is_empty() {
+        return Err(ApplicationError::InvalidConfiguration(format!(
+            "`--{flag} {value}` supplies no value after the equals sign"
+        )));
+    }
+    Ok((parsed, remainder.to_string()))
+}
+
+fn build_command_declarations(
+    commands: &[String],
+    arguments: &[String],
+    timeouts: &[String],
+) -> ApplicationResult<Vec<CommandDeclaration>> {
+    let mut declarations: Vec<CommandDeclaration> = Vec::new();
+    for entry in commands {
+        let (kind, program) = split_declaration(entry, "command")?;
+        if declarations.iter().any(|existing| existing.kind == kind) {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "`--command {}=` was given more than once",
+                kind.as_str()
+            )));
+        }
+        declarations.push(CommandDeclaration {
+            kind,
+            program,
+            args: Vec::new(),
+            timeout_seconds: None,
+        });
+    }
+    for entry in arguments {
+        let (kind, argument) = split_declaration(entry, "command-arg")?;
+        let Some(declaration) = declarations.iter_mut().find(|item| item.kind == kind) else {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "`--command-arg {}=...` was given without a matching `--command {}=<program>`",
+                kind.as_str(),
+                kind.as_str()
+            )));
+        };
+        declaration.args.push(argument);
+    }
+    for entry in timeouts {
+        let (kind, seconds) = split_declaration(entry, "command-timeout")?;
+        let parsed = seconds.parse::<u32>().map_err(|_| {
+            ApplicationError::InvalidConfiguration(format!(
+                "`--command-timeout {}={seconds}` must give a whole number of seconds",
+                kind.as_str()
+            ))
+        })?;
+        let Some(declaration) = declarations.iter_mut().find(|item| item.kind == kind) else {
+            return Err(ApplicationError::InvalidConfiguration(format!(
+                "`--command-timeout {}=...` was given without a matching `--command {}=<program>`",
+                kind.as_str(),
+                kind.as_str()
+            )));
+        };
+        declaration.timeout_seconds = Some(parsed);
+    }
+    Ok(declarations)
 }

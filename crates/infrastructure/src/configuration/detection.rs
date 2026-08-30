@@ -27,6 +27,16 @@ impl ProjectKind {
     }
 }
 
+pub const PROJECT_MARKERS: [&str; 7] = [
+    "Cargo.toml",
+    "go.mod",
+    "package.json",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+];
+
 pub fn detect_project_kind(repository: &Path) -> ProjectKind {
     if repository.join("Cargo.toml").exists() {
         return ProjectKind::Rust;

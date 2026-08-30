@@ -99,6 +99,9 @@ async fn execute(arguments: Arguments) -> ExitCode {
             wall_clock_seconds,
             demonstration,
             no_dispatch,
+            commands: declared_commands,
+            command_arguments,
+            command_timeouts,
         } => {
             commands::run_control::create_and_dispatch(
                 &context,
@@ -118,6 +121,9 @@ async fn execute(arguments: Arguments) -> ExitCode {
                     wall_clock_seconds,
                     demonstration,
                     dispatch: !no_dispatch,
+                    commands: declared_commands,
+                    command_arguments,
+                    command_timeouts,
                 },
             )
             .await

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use heikas_application::error::ApplicationResult;
-use heikas_application::ports::process::{ProcessOutcome, ProcessRequest, ProcessRunner};
+use heikas_application::ports::process::{ProcessOutcome, ProcessRunner};
 use heikas_application::ports::quality::{
     GateArtifact, GateContext, TestGateOutput, TestGateRunner,
 };
@@ -58,11 +58,11 @@ impl TestGateRunner for CommandTestGateRunner {
                 });
                 continue;
             }
-            let request = ProcessRequest::from_specification(
+            let request = crate::process::request_for_command(
                 specification,
                 &context.worktree,
                 context.configuration.budgets.max_output_bytes_per_stream,
-            );
+            )?;
             let outcome = self
                 .processes
                 .run(request, context.cancellation.clone())
@@ -120,38 +120,34 @@ pub fn build_record(
         ReportFormat::CargoTestJson => {
             summary = parse_cargo_test_json(&outcome.stdout_text());
         }
-        ReportFormat::JUnitXml => {
-            match read_report(&context.worktree, specification.report_path.as_deref()) {
-                Some(contents) => {
-                    summary = parse_junit_xml(&contents)?;
-                    artifacts.push(GateArtifact {
-                        label: format!("{scope}-{}-junit", specification.id),
-                        relative_path: format!("{base}/{}-junit.xml", specification.id),
-                        media_type: "application/xml".to_string(),
-                        bytes: contents.into_bytes(),
-                        truncated: false,
-                    });
-                }
-                None => report_missing = true,
+        ReportFormat::JUnitXml => match read_report(&context.worktree, specification)? {
+            Some(contents) => {
+                summary = parse_junit_xml(&contents)?;
+                artifacts.push(GateArtifact {
+                    label: format!("{scope}-{}-junit", specification.id),
+                    relative_path: format!("{base}/{}-junit.xml", specification.id),
+                    media_type: "application/xml".to_string(),
+                    bytes: contents.into_bytes(),
+                    truncated: false,
+                });
             }
-        }
-        ReportFormat::Lcov => {
-            match read_report(&context.worktree, specification.report_path.as_deref()) {
-                Some(contents) => {
-                    coverage = parse_lcov_coverage(&contents);
-                    artifacts.push(GateArtifact {
-                        label: format!("{scope}-{}-lcov", specification.id),
-                        relative_path: format!("{base}/{}-coverage.info", specification.id),
-                        media_type: "text/plain".to_string(),
-                        bytes: contents.into_bytes(),
-                        truncated: false,
-                    });
-                }
-                None => report_missing = true,
+            None => report_missing = true,
+        },
+        ReportFormat::Lcov => match read_report(&context.worktree, specification)? {
+            Some(contents) => {
+                coverage = parse_lcov_coverage(&contents);
+                artifacts.push(GateArtifact {
+                    label: format!("{scope}-{}-lcov", specification.id),
+                    relative_path: format!("{base}/{}-coverage.info", specification.id),
+                    media_type: "text/plain".to_string(),
+                    bytes: contents.into_bytes(),
+                    truncated: false,
+                });
             }
-        }
+            None => report_missing = true,
+        },
         ReportFormat::Sarif | ReportFormat::Text => {
-            match read_report(&context.worktree, specification.report_path.as_deref()) {
+            match read_report(&context.worktree, specification)? {
                 Some(contents) => {
                     artifacts.push(GateArtifact {
                         label: format!("{scope}-{}-report", specification.id),
@@ -174,11 +170,15 @@ pub fn build_record(
         coverage = parse_lcov_coverage(&outcome.stdout_text());
     }
 
+    let reports_executed_tests = specification.report_format != ReportFormat::None
+        && specification.kind == CommandKind::Test;
+    let executed_nothing = reports_executed_tests && summary.total == 0;
+
     let command_outcome = if outcome.cancelled {
         CommandOutcome::Cancelled
     } else if outcome.timed_out {
         CommandOutcome::TimedOut
-    } else if report_missing && specification.required {
+    } else if specification.required && (report_missing || executed_nothing) {
         CommandOutcome::ReportMissing
     } else if specification.is_success(outcome.exit_code) && summary.failed == 0 {
         CommandOutcome::Passed
@@ -189,10 +189,14 @@ pub fn build_record(
     let detail = if command_outcome == CommandOutcome::Failed {
         Some(failure_detail(outcome, &summary))
     } else if command_outcome == CommandOutcome::ReportMissing {
-        Some(format!(
-            "the required report `{}` was not produced",
-            specification.report_path.clone().unwrap_or_default()
-        ))
+        Some(if executed_nothing {
+            "the required test command reported no executed tests, so it is no evidence that the change is correct".to_string()
+        } else {
+            format!(
+                "the required report `{}` was not produced",
+                specification.report_path.clone().unwrap_or_default()
+            )
+        })
     } else {
         None
     };
@@ -278,8 +282,24 @@ pub fn evidence_relative_root(context: &GateContext) -> String {
     }
 }
 
-fn read_report(worktree: &Path, relative: Option<&str>) -> Option<String> {
-    let relative = relative?;
-    let path = worktree.join(relative);
-    std::fs::read_to_string(path).ok()
+fn read_report(
+    worktree: &Path,
+    specification: &CommandSpecification,
+) -> ApplicationResult<Option<String>> {
+    let Some(relative) = specification.report_path.as_deref() else {
+        return Ok(None);
+    };
+    let root = crate::paths::confined_working_directory(
+        worktree,
+        specification.working_subdirectory.as_deref(),
+    )?;
+    let Some(bytes) = crate::paths::read_confined_file(
+        &root,
+        relative,
+        crate::paths::MAXIMUM_REPOSITORY_REPORT_BYTES,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(String::from_utf8(bytes).ok())
 }

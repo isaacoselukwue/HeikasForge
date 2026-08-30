@@ -91,6 +91,13 @@
       ],
       "format": "uint32",
       "minimum": 0.0
+    },
+    "command_declarations": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CommandDeclaration"
+      }
     }
   },
   "definitions": {
@@ -107,6 +114,51 @@
       "enum": [
         "standard",
         "strict"
+      ]
+    },
+    "CommandDeclaration": {
+      "type": "object",
+      "required": [
+        "kind",
+        "program"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/CommandKind"
+        },
+        "program": {
+          "type": "string"
+        },
+        "args": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timeout_seconds": {
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "CommandKind": {
+      "type": "string",
+      "enum": [
+        "format",
+        "lint",
+        "test",
+        "coverage",
+        "audit",
+        "secret_scan",
+        "static_analysis",
+        "policy",
+        "build"
       ]
     }
   }

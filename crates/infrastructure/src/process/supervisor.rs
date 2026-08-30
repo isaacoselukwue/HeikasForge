@@ -163,6 +163,7 @@ impl ProcessRunner for SupervisedProcessRunner {
         };
         let mut command = Command::new(&resolved);
         command.arg("--version");
+        command.current_dir(std::env::temp_dir());
         command.env_clear();
         for (name, value) in self.base_environment() {
             command.env(name, value);
@@ -260,8 +261,11 @@ where
 
 pub fn resolve_on_path(program: &str) -> Option<std::path::PathBuf> {
     let candidate = Path::new(program);
-    if candidate.is_absolute() || program.contains(std::path::MAIN_SEPARATOR) {
-        return candidate.exists().then(|| candidate.to_path_buf());
+    if candidate.is_absolute() {
+        return candidate.is_file().then(|| candidate.to_path_buf());
+    }
+    if program.contains('/') || program.contains('\\') {
+        return None;
     }
     let path = std::env::var_os("PATH")?;
     for directory in std::env::split_paths(&path) {

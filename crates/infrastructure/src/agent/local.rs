@@ -187,26 +187,57 @@ impl LocalModelAgentDriver {
                 return unavailable(diagnostics, Some(endpoint));
             }
         };
-        let model = match self.model() {
-            Ok(model) => model,
-            Err(_) => match models.first() {
-                Some(first) => {
-                    diagnostics.push(format!(
-                        "no model was configured, so the first available model `{first}` was selected"
-                    ));
-                    first.clone()
-                }
-                None => {
+        let configured = self.model().ok();
+        if let Some(model) = &configured {
+            if !models.is_empty() && !models.iter().any(|candidate| candidate == model) {
+                diagnostics.push(format!(
+                    "the configured model `{model}` was not listed by the runtime"
+                ));
+            }
+        }
+        let model = match configured {
+            Some(model) => model,
+            None => {
+                if models.is_empty() {
                     diagnostics.push("the model runtime reports no available models".to_string());
                     return unavailable(diagnostics, Some(endpoint));
                 }
-            },
+                let ordered = order_by_likely_tool_support(&models);
+                let mut chosen = None;
+                let mut rejected: Vec<String> = Vec::new();
+                for candidate in ordered.iter().take(MAXIMUM_MODEL_PROBES) {
+                    let (supported, _) = self.probe_tool_calls(candidate).await;
+                    if supported {
+                        chosen = Some(candidate.clone());
+                        break;
+                    }
+                    rejected.push(candidate.clone());
+                }
+                match chosen {
+                    Some(model) => {
+                        diagnostics.push(format!(
+                            "no model was configured, so `{model}` was selected after confirming that it accepts structured tool calls"
+                        ));
+                        if !rejected.is_empty() {
+                            diagnostics.push(format!(
+                                "these models were tried first and do not accept tool calls: {}",
+                                rejected.join(", ")
+                            ));
+                        }
+                        model
+                    }
+                    None => {
+                        diagnostics.push(format!(
+                            "none of the {} models tried accepts structured tool calls: {}. The runtime also offers {}. Install a model that supports tool calling, such as a coding or instruction tuned model, then set it with `model` under `[agent]` in your user configuration.",
+                            rejected.len(),
+                            rejected.join(", "),
+                            describe_remaining(&ordered, MAXIMUM_MODEL_PROBES)
+                        ));
+                        return unsupported(diagnostics, Some(endpoint), ordered.first().cloned());
+                    }
+                }
+            }
         };
-        if !models.is_empty() && !models.iter().any(|candidate| candidate == &model) {
-            diagnostics.push(format!(
-                "the configured model `{model}` was not listed by the runtime"
-            ));
-        }
         let (supports_tools, tool_diagnostic) = if std::env::var("HEIKAS_SKIP_AGENT_PROBE").is_ok()
         {
             (true, None)
@@ -231,6 +262,75 @@ impl LocalModelAgentDriver {
             demonstration_only: false,
             diagnostics,
         }
+    }
+}
+
+const MAXIMUM_MODEL_PROBES: usize = 5;
+
+const HOSTED_MODEL_MARKER: &str = "-cloud";
+
+const LIKELY_TOOL_MARKERS: [&str; 8] = [
+    "coder", "code", "instruct", "qwen", "llama", "mistral", "devstral", "granite",
+];
+
+const UNLIKELY_TOOL_MARKERS: [&str; 6] = ["-vl", "vl:", "vision", "-v:", "embed", "whisper"];
+
+fn model_rank(model: &str) -> (u8, u8) {
+    let lowered = model.to_ascii_lowercase();
+    let hosted = u8::from(lowered.contains(HOSTED_MODEL_MARKER));
+    if UNLIKELY_TOOL_MARKERS
+        .iter()
+        .any(|marker| lowered.contains(marker))
+    {
+        return (hosted, 2);
+    }
+    if LIKELY_TOOL_MARKERS
+        .iter()
+        .any(|marker| lowered.contains(marker))
+    {
+        return (hosted, 0);
+    }
+    (hosted, 1)
+}
+
+fn order_by_likely_tool_support(models: &[String]) -> Vec<String> {
+    let mut ordered = models.to_vec();
+    ordered.sort_by(|left, right| {
+        model_rank(left)
+            .cmp(&model_rank(right))
+            .then_with(|| left.cmp(right))
+    });
+    ordered
+}
+
+fn describe_remaining(ordered: &[String], probed: usize) -> String {
+    let remaining: Vec<&str> = ordered.iter().skip(probed).map(String::as_str).collect();
+    if remaining.is_empty() {
+        "no further models".to_string()
+    } else {
+        remaining.join(", ")
+    }
+}
+
+fn unsupported(
+    diagnostics: Vec<String>,
+    endpoint: Option<String>,
+    model: Option<String>,
+) -> AgentCapabilities {
+    AgentCapabilities {
+        driver: AgentDriverKind::Local,
+        available: true,
+        version: None,
+        model_identity: model,
+        supports_structured_tool_calls: false,
+        supports_non_interactive: true,
+        isolation: IsolationStrength::WorkingDirectoryRestricted,
+        honours_write_restriction: true,
+        context_window_tokens: None,
+        endpoint,
+        requires_paid_account: false,
+        demonstration_only: false,
+        diagnostics,
     }
 }
 

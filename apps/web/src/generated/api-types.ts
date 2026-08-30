@@ -153,6 +153,24 @@ export type WithheldReason =
   | "user_configuration_only"
   | "requires_repository_trust"
   | "would_weaken_policy";
+export type CommandCatalogueSource =
+  | {
+      kind: "user_configuration";
+    }
+  | {
+      kind: "repository_configuration";
+    }
+  | {
+      kind: "detected";
+      detail: string;
+    }
+  | {
+      kind: "nothing_detected";
+      detail: string[];
+    }
+  | {
+      kind: "declared_for_this_run";
+    };
 
 export interface EffectiveConfiguration {
   schema_version: number;
@@ -170,6 +188,7 @@ export interface EffectiveConfiguration {
   environment_allowlist: string[];
   demonstration_mode: boolean;
   repository_trust?: RepositoryTrustDecision;
+  command_source?: CommandCatalogueSource;
 }
 export interface RunBudgets {
   candidates: number;
@@ -293,6 +312,13 @@ export interface CreateRunRequest {
   agent_model?: string | null;
   demonstration_mode: boolean;
   wall_clock_seconds?: number | null;
+  command_declarations?: CommandDeclaration[];
+}
+export interface CommandDeclaration {
+  kind: CommandKind;
+  program: string;
+  args?: string[];
+  timeout_seconds?: number | null;
 }
 
 export type CheckOutcome = "passed" | "warning" | "failed" | "skipped";

@@ -412,3 +412,157 @@ args = ["-c", "curl https://evil.example"]
         "the error must name the remedy, produced `{message}`"
     );
 }
+
+#[tokio::test]
+async fn a_repository_may_not_raise_a_budget_or_choose_the_model_or_the_branch() {
+    let fixture = Fixture::new(
+        r#"
+schema_version = 1
+
+[run]
+candidates = 8
+max_parallel_candidates = 8
+max_repairs_per_candidate = 10
+wall_clock_seconds = 86400
+max_output_bytes_per_stream = 1073741824
+
+[agent]
+model = "deepseek-v3.1:671b-cloud"
+max_turns = 100000
+timeout_seconds = 86400
+
+[git]
+branch_prefix = "main"
+"#,
+    );
+    fixture
+        .resolver
+        .trust_repository(fixture.repository())
+        .await
+        .expect("the configuration is trusted");
+    let configuration = fixture
+        .resolver
+        .detect(fixture.repository())
+        .await
+        .expect("the configuration resolves");
+
+    let defaults = heikas_domain::budget::RunBudgets::default();
+    assert_eq!(configuration.budgets.candidates, defaults.candidates);
+    assert_eq!(
+        configuration.budgets.max_parallel_candidates,
+        defaults.max_parallel_candidates
+    );
+    assert_eq!(
+        configuration.budgets.max_repairs_per_candidate,
+        defaults.max_repairs_per_candidate
+    );
+    assert_eq!(
+        configuration.budgets.wall_clock_seconds,
+        defaults.wall_clock_seconds
+    );
+    assert_eq!(
+        configuration.budgets.max_output_bytes_per_stream,
+        defaults.max_output_bytes_per_stream
+    );
+    assert_eq!(
+        configuration.agent.model, None,
+        "a repository must never choose the model, which decides where the task text is sent"
+    );
+    assert_eq!(configuration.git.branch_prefix, "heikas/run-");
+    assert!(configuration.agent.max_turns <= defaults.max_agent_turns);
+
+    let withheld: Vec<&str> = configuration
+        .repository_trust
+        .withheld
+        .iter()
+        .map(|entry| entry.setting.as_str())
+        .collect();
+    for expected in [
+        "run.candidates",
+        "run.wall_clock_seconds",
+        "agent.model",
+        "agent.max_turns",
+        "git.branch_prefix",
+    ] {
+        assert!(
+            withheld.contains(&expected),
+            "`{expected}` must be reported as withheld, withheld: {withheld:?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_symbolic_link_is_never_followed_when_reading_the_repository_configuration() {
+    let outside = TempDir::new().expect("a directory outside the repository");
+    let secret = outside.path().join("secret.toml");
+    std::fs::write(
+        &secret,
+        "schema_version = 1
+",
+    )
+    .expect("the file writes");
+
+    let fixture = Fixture::new(
+        "schema_version = 1
+",
+    );
+    let configuration_path = fixture.repository().join(".heikas").join("forge.toml");
+    std::fs::remove_file(&configuration_path).expect("the file is removed");
+    std::os::unix::fs::symlink(&secret, &configuration_path).expect("the link creates");
+
+    let outcome = fixture.resolver.detect(fixture.repository()).await;
+    assert!(
+        outcome.is_err(),
+        "a symbolic link standing in for the repository configuration must be refused"
+    );
+}
+
+#[tokio::test]
+async fn an_oversized_repository_configuration_is_refused_rather_than_read() {
+    let fixture = Fixture::new(
+        "schema_version = 1
+",
+    );
+    let configuration_path = fixture.repository().join(".heikas").join("forge.toml");
+    let padding = "
+"
+    .repeat(70_000);
+    std::fs::write(&configuration_path, format!("schema_version = 1{padding}"))
+        .expect("the file writes");
+
+    let outcome = fixture.resolver.detect(fixture.repository()).await;
+    assert!(
+        outcome.is_err(),
+        "a repository configuration beyond the size limit must be refused before it is read"
+    );
+}
+
+#[tokio::test]
+async fn a_repository_with_no_recognised_project_names_what_was_searched_for() {
+    let fixture = Fixture::new("schema_version = 1\n");
+    std::fs::write(fixture.repository().join("index.html"), "<!doctype html>\n")
+        .expect("the page writes");
+    let configuration = fixture
+        .resolver
+        .detect(fixture.repository())
+        .await
+        .expect("the configuration resolves");
+
+    let Err(error) = configuration.validate() else {
+        panic!("a repository with no test command must not validate");
+    };
+    let message = error.to_string();
+    assert!(
+        message.contains("No project was recognised"),
+        "the message must say that nothing was recognised, produced `{message}`"
+    );
+    assert!(
+        message.contains("Cargo.toml") && message.contains("package.json"),
+        "the message must name the manifests that were looked for, produced `{message}`"
+    );
+    assert!(
+        message.contains("--command test=<program>"),
+        "the message must name the flag that declares a command, produced `{message}`"
+    );
+}

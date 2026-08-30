@@ -14,6 +14,8 @@ pub struct InitOutcome {
     pub project_kind: String,
     pub commands: Vec<String>,
     pub internal_notes_path: String,
+    pub ready: bool,
+    pub blocking_detail: Option<String>,
 }
 
 pub async fn init(
@@ -51,23 +53,43 @@ pub async fn init(
             .map(|command| format!("{} ({})", command.id, command.display_line()))
             .collect(),
         internal_notes_path: notes.display().to_string(),
+        ready: configuration.validate().is_ok(),
+        blocking_detail: configuration
+            .validate()
+            .err()
+            .map(|error| error.to_string()),
     };
     context.emit(&outcome, |palette| {
         let mut text = String::new();
-        text.push_str(&palette.heading("Repository prepared\n"));
+        text.push_str(&palette.heading(if outcome.ready {
+            "Repository prepared\n"
+        } else {
+            "Repository configuration written, but it cannot start a run yet\n"
+        }));
         text.push_str(&format!("Configuration: {}\n", outcome.configuration_path));
         text.push_str(&format!("Project kind: {}\n", outcome.project_kind));
         text.push_str(&format!(
             "Internal notes: {}\n",
             outcome.internal_notes_path
         ));
-        text.push_str("Commands:\n");
-        for command in &outcome.commands {
-            text.push_str(&format!("  {command}\n"));
+        if outcome.commands.is_empty() {
+            text.push_str("Commands: none were detected\n");
+        } else {
+            text.push_str("Commands:\n");
+            for command in &outcome.commands {
+                text.push_str(&format!("  {command}\n"));
+            }
+        }
+        if let Some(detail) = &outcome.blocking_detail {
+            text.push_str(&palette.warning(&format!("\n{detail}\n")));
         }
         text
     });
-    Ok(ExitCode::Success)
+    Ok(if outcome.ready {
+        ExitCode::Success
+    } else {
+        ExitCode::InvalidUsage
+    })
 }
 
 pub async fn doctor(context: &CommandContext, path: &Path) -> ApplicationResult<ExitCode> {

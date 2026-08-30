@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use heikas_application::configuration::{
-    AgentConfiguration, AgentDriverKind, AiReviewConfiguration, ConfigurationAuthority,
-    EffectiveConfiguration, GitConfiguration, QualityConfiguration, RedactionConfiguration,
-    RepositoryTrustDecision, RepositoryTrustRecord, RepositoryTrustState, SonarMcpConfiguration,
-    SonarScannerConfiguration, WithheldReason, WithheldSetting, CONFIGURATION_SCHEMA_VERSION,
-    REPOSITORY_CONFIGURATION_RELATIVE_PATH,
+    AgentConfiguration, AgentDriverKind, AiReviewConfiguration, CommandCatalogueSource,
+    ConfigurationAuthority, EffectiveConfiguration, GitConfiguration, QualityConfiguration,
+    RedactionConfiguration, RepositoryTrustDecision, RepositoryTrustRecord, RepositoryTrustState,
+    SonarMcpConfiguration, SonarScannerConfiguration, WithheldReason, WithheldSetting,
+    CONFIGURATION_SCHEMA_VERSION, REPOSITORY_CONFIGURATION_RELATIVE_PATH,
 };
 use heikas_application::error::{ApplicationError, ApplicationResult};
 use heikas_application::model::request::CreateRunRequest;
@@ -26,7 +26,7 @@ use heikas_domain::retry::{NodeTimeouts, RetryPolicy};
 use heikas_domain::run::CommitPolicy;
 
 use crate::atomic::write_atomic;
-use crate::configuration::detection::{detect_project_kind, proposed_commands};
+use crate::configuration::detection::{detect_project_kind, proposed_commands, PROJECT_MARKERS};
 use crate::configuration::document::{CommandSection, ForgeDocument};
 use crate::configuration::trust::FileRepositoryTrustStore;
 use crate::layout::StoreLayout;
@@ -137,6 +137,7 @@ impl LayeredConfigurationResolver {
                 .collect(),
             demonstration_mode: false,
             repository_trust: RepositoryTrustDecision::default(),
+            command_source: CommandCatalogueSource::default(),
         }
     }
 
@@ -146,6 +147,14 @@ impl LayeredConfigurationResolver {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(crate::atomic::storage(path, "read", error)),
         }
+    }
+
+    fn read_repository_bytes(repository: &Path) -> ApplicationResult<Option<Vec<u8>>> {
+        crate::paths::read_confined_file(
+            repository,
+            REPOSITORY_CONFIGURATION_RELATIVE_PATH,
+            crate::paths::MAXIMUM_REPOSITORY_CONFIGURATION_BYTES,
+        )
     }
 
     fn parse_document(path: &Path, bytes: &[u8]) -> ApplicationResult<ForgeDocument> {
@@ -186,19 +195,35 @@ impl LayeredConfigurationResolver {
     ) -> ApplicationResult<()> {
         if let Some(run) = &document.run {
             if let Some(candidates) = run.candidates {
-                configuration.budgets.candidates = CandidateCount::new(candidates)?;
+                let parsed = CandidateCount::new(candidates)?;
+                let relaxes = parsed.get() > configuration.budgets.candidates.get();
+                if gate.never_relaxes("run.candidates", relaxes) {
+                    configuration.budgets.candidates = parsed;
+                }
             }
             if let Some(parallel) = run.max_parallel_candidates {
-                configuration.budgets.max_parallel_candidates = parallel;
+                let relaxes = parallel > configuration.budgets.max_parallel_candidates;
+                if gate.never_relaxes("run.max_parallel_candidates", relaxes) {
+                    configuration.budgets.max_parallel_candidates = parallel;
+                }
             }
             if let Some(repairs) = run.max_repairs_per_candidate {
-                configuration.budgets.max_repairs_per_candidate = repairs;
+                let relaxes = repairs > configuration.budgets.max_repairs_per_candidate;
+                if gate.never_relaxes("run.max_repairs_per_candidate", relaxes) {
+                    configuration.budgets.max_repairs_per_candidate = repairs;
+                }
             }
             if let Some(seconds) = run.wall_clock_seconds {
-                configuration.budgets.wall_clock_seconds = seconds;
+                let relaxes = seconds > configuration.budgets.wall_clock_seconds;
+                if gate.never_relaxes("run.wall_clock_seconds", relaxes) {
+                    configuration.budgets.wall_clock_seconds = seconds;
+                }
             }
             if let Some(bytes) = run.max_output_bytes_per_stream {
-                configuration.budgets.max_output_bytes_per_stream = bytes;
+                let relaxes = bytes > configuration.budgets.max_output_bytes_per_stream;
+                if gate.never_relaxes("run.max_output_bytes_per_stream", relaxes) {
+                    configuration.budgets.max_output_bytes_per_stream = bytes;
+                }
             }
             if let Some(policy) = &run.commit_policy {
                 if gate.owner_only("run.commit_policy") {
@@ -218,7 +243,7 @@ impl LayeredConfigurationResolver {
                     configuration.agent.driver = AgentDriverKind::from_str(driver)?;
                 }
             }
-            if agent.model.is_some() {
+            if agent.model.is_some() && gate.owner_only("agent.model") {
                 configuration.agent.model = agent.model.clone();
             }
             if agent.endpoint.is_some() && gate.owner_only("agent.endpoint") {
@@ -239,13 +264,19 @@ impl LayeredConfigurationResolver {
                 }
             }
             if let Some(turns) = agent.max_turns {
-                configuration.agent.max_turns = turns;
-                configuration.budgets.max_agent_turns = turns;
+                let relaxes = turns > configuration.agent.max_turns;
+                if gate.never_relaxes("agent.max_turns", relaxes) {
+                    configuration.agent.max_turns = turns;
+                    configuration.budgets.max_agent_turns = turns;
+                }
             }
             if let Some(seconds) = agent.timeout_seconds {
-                configuration.agent.timeout =
-                    TimeoutSeconds::clamped(seconds, MAXIMUM_COMMAND_TIMEOUT_SECONDS);
-                configuration.timeouts.agent_seconds = seconds;
+                let relaxes = seconds > configuration.timeouts.agent_seconds;
+                if gate.never_relaxes("agent.timeout_seconds", relaxes) {
+                    configuration.agent.timeout =
+                        TimeoutSeconds::clamped(seconds, MAXIMUM_COMMAND_TIMEOUT_SECONDS);
+                    configuration.timeouts.agent_seconds = seconds;
+                }
             }
             if let Some(network) = agent.network {
                 let relaxes = network.permissiveness_rank()
@@ -294,7 +325,9 @@ impl LayeredConfigurationResolver {
         }
         if let Some(git) = &document.git {
             if let Some(prefix) = &git.branch_prefix {
-                configuration.git.branch_prefix = prefix.clone();
+                if gate.owner_only("git.branch_prefix") {
+                    configuration.git.branch_prefix = prefix.clone();
+                }
             }
             if let Some(author) = &git.author_name {
                 if gate.owner_only("git.author_name") {
@@ -393,6 +426,11 @@ impl LayeredConfigurationResolver {
                     catalogue.commands.push(convert_command(section)?);
                 }
                 configuration.commands = catalogue;
+                configuration.command_source = if gate.is_user() {
+                    CommandCatalogueSource::UserConfiguration
+                } else {
+                    CommandCatalogueSource::RepositoryConfiguration
+                };
             }
         }
         Ok(())
@@ -560,7 +598,7 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
             Self::apply(&mut configuration, &document, &mut AuthorityGate::user())?;
         }
         let repository_path = repository.join(REPOSITORY_CONFIGURATION_RELATIVE_PATH);
-        match Self::read_bytes(&repository_path)? {
+        match Self::read_repository_bytes(repository)? {
             Some(bytes) => {
                 let digest = ContentDigest::of_bytes(&bytes);
                 let document = Self::parse_document(&repository_path, &bytes)?;
@@ -583,9 +621,18 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
         }
         if configuration.commands.commands.is_empty() {
             let kind = detect_project_kind(repository);
-            configuration.commands = CommandCatalogue {
-                commands: proposed_commands(kind),
+            let proposed = proposed_commands(kind);
+            configuration.command_source = if proposed.is_empty() {
+                CommandCatalogueSource::NothingDetected(
+                    PROJECT_MARKERS
+                        .iter()
+                        .map(|marker| marker.to_string())
+                        .collect(),
+                )
+            } else {
+                CommandCatalogueSource::Detected(kind.as_str().to_string())
             };
+            configuration.commands = CommandCatalogue { commands: proposed };
         }
         Ok(configuration)
     }
@@ -632,7 +679,7 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
         repository: &Path,
     ) -> ApplicationResult<RepositoryTrustRecord> {
         let path = repository.join(REPOSITORY_CONFIGURATION_RELATIVE_PATH);
-        let Some(bytes) = Self::read_bytes(&path)? else {
+        let Some(bytes) = Self::read_repository_bytes(repository)? else {
             return Err(ApplicationError::InvalidConfiguration(format!(
                 "`{}` does not exist, so there is nothing to trust",
                 path.display()

@@ -99,6 +99,24 @@ pub enum Command {
         demonstration: bool,
         #[arg(long, help = "Create the run without dispatching it")]
         no_dispatch: bool,
+        #[arg(
+            long = "command",
+            value_name = "KIND=PROGRAM",
+            help = "Declare a command for this run alone, for example test=pytest"
+        )]
+        commands: Vec<String>,
+        #[arg(
+            long = "command-arg",
+            value_name = "KIND=ARGUMENT",
+            help = "Add one argument to a declared command, repeat for each argument"
+        )]
+        command_arguments: Vec<String>,
+        #[arg(
+            long = "command-timeout",
+            value_name = "KIND=SECONDS",
+            help = "Override the timeout of a declared command"
+        )]
+        command_timeouts: Vec<String>,
     },
 
     #[command(about = "Resume a paused or interrupted run")]

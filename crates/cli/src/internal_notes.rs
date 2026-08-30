@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use heikas_application::error::{ApplicationError, ApplicationResult};
+use heikas_application::error::ApplicationResult;
 
 pub const FILE_NAME: &str = "README.internal.md";
 
@@ -28,22 +28,21 @@ pub fn scaffold() -> String {
 
 pub fn write(repository: &Path) -> ApplicationResult<std::path::PathBuf> {
     let path = repository.join(FILE_NAME);
-    if path.exists() {
+    if std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file()) {
         return Ok(path);
     }
-    std::fs::write(&path, scaffold()).map_err(|error| {
-        ApplicationError::Storage(format!("could not write `{}`: {error}", path.display()))
-    })?;
+    heikas_infrastructure::atomic::write_atomic(&path, scaffold().as_bytes())?;
     Ok(path)
 }
 
 pub fn refresh(repository: &Path) -> ApplicationResult<std::path::PathBuf> {
     let path = repository.join(FILE_NAME);
-    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let existing = match std::fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.is_file() => std::fs::read_to_string(&path).unwrap_or_default(),
+        _ => String::new(),
+    };
     if existing.trim().is_empty() {
-        std::fs::write(&path, scaffold()).map_err(|error| {
-            ApplicationError::Storage(format!("could not write `{}`: {error}", path.display()))
-        })?;
+        heikas_infrastructure::atomic::write_atomic(&path, scaffold().as_bytes())?;
     }
     Ok(path)
 }

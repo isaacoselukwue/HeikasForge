@@ -49,6 +49,11 @@ pub async fn create_run(
             "the task description exceeds the {MAXIMUM_TASK_BYTES} byte limit"
         )));
     }
+    if !request.command_declarations.is_empty() {
+        return Err(ApiError::forbidden(
+            "a command may not be declared through the interface, because that would let a single request choose which executable runs. Declare it in the terminal with `heikas run --command`, or write it into `.heikas/forge.toml` and grant trust with `heikas trust`.",
+        ));
+    }
     if state.demonstration_mode {
         request.demonstration_mode = true;
     }

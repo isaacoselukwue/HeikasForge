@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use heikas_application::error::ApplicationResult;
 use heikas_application::ports::clock::Clock;
 use heikas_application::ports::git::GitService;
-use heikas_application::ports::process::{ProcessRequest, ProcessRunner};
+use heikas_application::ports::process::ProcessRunner;
 use heikas_application::ports::quality::{
     GateArtifact, GateContext, ReviewGateOutput, ReviewProvider,
 };
@@ -46,11 +46,11 @@ impl LocalQualityProvider {
         issues: &mut Vec<ReviewIssue>,
         artifacts: &mut Vec<GateArtifact>,
     ) -> ApplicationResult<bool> {
-        let request = ProcessRequest::from_specification(
+        let request = crate::process::request_for_command(
             specification,
             &context.worktree,
             context.configuration.budgets.max_output_bytes_per_stream,
-        );
+        )?;
         let outcome = self
             .processes
             .run(request, context.cancellation.clone())

@@ -123,6 +123,22 @@ impl RepositoryTrustDecision {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "detail")]
+pub enum CommandCatalogueSource {
+    UserConfiguration,
+    RepositoryConfiguration,
+    Detected(String),
+    NothingDetected(Vec<String>),
+    DeclaredForThisRun,
+}
+
+impl Default for CommandCatalogueSource {
+    fn default() -> Self {
+        CommandCatalogueSource::NothingDetected(Vec::new())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct RepositoryTrustRecord {
     pub repository_path: String,
     pub configuration_digest: ContentDigest,
@@ -390,6 +406,8 @@ pub struct EffectiveConfiguration {
     pub demonstration_mode: bool,
     #[serde(default)]
     pub repository_trust: RepositoryTrustDecision,
+    #[serde(default)]
+    pub command_source: CommandCatalogueSource,
 }
 
 impl EffectiveConfiguration {
@@ -411,26 +429,19 @@ impl EffectiveConfiguration {
                 "the Git branch prefix must not be empty".to_string(),
             ));
         }
+        let mut missing: Vec<CommandKind> = Vec::new();
         if self.commands.of_kind(CommandKind::Test).is_empty() {
-            if self.repository_trust.state == RepositoryTrustState::Untrusted {
-                return Err(ApplicationError::InvalidConfiguration(format!(
-                    "`{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` declares commands that have not been trusted, and no test command could be detected. Read the file, then run `heikas trust {}` if you accept the commands it declares.",
-                    self.repository_path.display()
-                )));
-            }
-            return Err(ApplicationError::InvalidConfiguration(
-                "at least one test command must be configured before a run can start".to_string(),
-            ));
+            missing.push(CommandKind::Test);
         }
-        let required_kinds = self.required_review_kinds();
-        for kind in required_kinds {
+        for kind in self.required_review_kinds() {
             if self.commands.of_kind(kind).is_empty() {
-                return Err(ApplicationError::InvalidConfiguration(format!(
-                    "the {} quality profile requires a `{}` command",
-                    self.quality.profile.as_str(),
-                    kind.as_str()
-                )));
+                missing.push(kind);
             }
+        }
+        if !missing.is_empty() {
+            return Err(ApplicationError::InvalidConfiguration(
+                self.missing_commands_detail(&missing),
+            ));
         }
         for command in &self.commands.commands {
             if command.required
@@ -450,6 +461,61 @@ impl EffectiveConfiguration {
             ));
         }
         Ok(())
+    }
+
+    pub fn missing_commands_detail(&self, missing: &[CommandKind]) -> String {
+        let kinds = missing
+            .iter()
+            .map(|kind| format!("`{}`", kind.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let declarations = missing
+            .iter()
+            .map(|kind| format!("--command {}=<program>", kind.as_str()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(
+            "the {} quality profile needs a command of kind {kinds}. {} Declare them for this run with `{declarations}`, giving each argument separately as `--command-arg <kind>=<argument>`, or write `[[commands]]` entries into `{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` and run `heikas trust {}`.",
+            self.quality.profile.as_str(),
+            self.command_source_detail(),
+            self.repository_path.display()
+        )
+    }
+
+    fn command_source_detail(&self) -> String {
+        let repository = self.repository_path.display();
+        let commands_were_withheld = self
+            .repository_trust
+            .withheld
+            .iter()
+            .any(|entry| entry.setting == "commands");
+        if commands_were_withheld {
+            return format!(
+                "`{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` declares commands that have not been trusted, so none of them was honoured."
+            );
+        }
+        match &self.command_source {
+            CommandCatalogueSource::NothingDetected(markers) => format!(
+                "No project was recognised in `{repository}`, because none of {} is present.",
+                describe_markers(markers)
+            ),
+            CommandCatalogueSource::Detected(kind) => format!(
+                "`{repository}` was detected as a {kind} project, which proposed {} commands.",
+                self.commands.commands.len()
+            ),
+            CommandCatalogueSource::DeclaredForThisRun => format!(
+                "{} commands were declared for this run.",
+                self.commands.commands.len()
+            ),
+            CommandCatalogueSource::UserConfiguration => format!(
+                "Your user configuration declares {} commands.",
+                self.commands.commands.len()
+            ),
+            CommandCatalogueSource::RepositoryConfiguration => format!(
+                "`{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` declares {} commands.",
+                self.commands.commands.len()
+            ),
+        }
     }
 
     pub fn required_review_kinds(&self) -> Vec<CommandKind> {
@@ -496,5 +562,22 @@ impl EffectiveConfiguration {
             providers.push("ai-review".to_string());
         }
         providers
+    }
+}
+
+fn describe_markers(markers: &[String]) -> String {
+    if markers.is_empty() {
+        return "any recognised project manifest".to_string();
+    }
+    match markers.split_last() {
+        Some((last, [])) => format!("`{last}`"),
+        Some((last, rest)) => format!(
+            "{} and `{last}`",
+            rest.iter()
+                .map(|marker| format!("`{marker}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        None => "any recognised project manifest".to_string(),
     }
 }

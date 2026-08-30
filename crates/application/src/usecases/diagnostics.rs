@@ -251,7 +251,7 @@ pub async fn diagnose(
                 "Configuration",
                 "Effective configuration",
                 error.to_string(),
-                "Correct `.heikas/forge.toml` and run the doctor again.",
+                "The detail above names every command kind that is missing and the exact flags that declare them.",
             )),
         }
 

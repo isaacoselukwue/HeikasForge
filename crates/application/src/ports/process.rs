@@ -1,8 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 use heikas_domain::clock::DurationMs;
-use heikas_domain::command::CommandSpecification;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
@@ -18,29 +17,6 @@ pub struct ProcessRequest {
     pub timeout_seconds: u32,
     pub max_output_bytes: u64,
     pub label: String,
-}
-
-impl ProcessRequest {
-    pub fn from_specification(
-        specification: &CommandSpecification,
-        worktree: &Path,
-        max_output_bytes: u64,
-    ) -> Self {
-        let working_directory = match &specification.working_subdirectory {
-            Some(subdirectory) => worktree.join(subdirectory),
-            None => worktree.to_path_buf(),
-        };
-        Self {
-            program: specification.program.clone(),
-            args: specification.args.clone(),
-            working_directory,
-            environment: specification.environment.clone(),
-            stdin: None,
-            timeout_seconds: specification.timeout.get(),
-            max_output_bytes,
-            label: specification.id.to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
