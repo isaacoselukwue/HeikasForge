@@ -2,6 +2,7 @@ import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile } from "json-schema-to-typescript";
+import prettier from "prettier";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(here, "..", "..", "..");
@@ -37,8 +38,13 @@ async function main() {
     sections.push(generated.trim());
   }
   const merged = deduplicate(sections.join("\n\n"));
+  const options = await prettier.resolveConfig(outputFile);
+  const formatted = await prettier.format(`${banner}\n${merged}\n`, {
+    ...options,
+    filepath: outputFile,
+  });
   await mkdir(dirname(outputFile), { recursive: true });
-  await writeFile(outputFile, `${banner}\n${merged}\n`, "utf8");
+  await writeFile(outputFile, formatted, "utf8");
   console.log(`wrote ${outputFile}`);
 }
 

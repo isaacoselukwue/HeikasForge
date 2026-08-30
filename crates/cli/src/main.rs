@@ -15,6 +15,8 @@ use crate::commands::ui::InterfaceOptions;
 use crate::context::CommandContext;
 use crate::exit::ExitCode;
 
+const WORKER_STACK_BYTES: usize = 16 * 1024 * 1024;
+
 fn main() {
     let arguments = Arguments::parse();
     install_tracing(
@@ -30,6 +32,7 @@ fn main() {
 
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
+        .thread_stack_size(WORKER_STACK_BYTES)
         .build()
     {
         Ok(runtime) => runtime,
@@ -39,7 +42,20 @@ fn main() {
         }
     };
 
-    let code = runtime.block_on(execute(arguments));
+    let code = match std::thread::Builder::new()
+        .stack_size(WORKER_STACK_BYTES)
+        .spawn(move || runtime.block_on(execute(arguments)))
+        .and_then(|handle| {
+            handle
+                .join()
+                .map_err(|_| std::io::Error::other("the command thread stopped unexpectedly"))
+        }) {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("the command could not run: {error}");
+            ExitCode::Failed
+        }
+    };
     std::process::exit(code.value());
 }
 

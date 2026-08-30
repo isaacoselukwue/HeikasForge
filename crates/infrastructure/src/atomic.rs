@@ -140,11 +140,17 @@ pub fn sync_tree(path: &Path) -> ApplicationResult<()> {
             let entry = entry.map_err(|error| storage(path, "read directory entry", error))?;
             sync_tree(&entry.path())?;
         }
-        sync_directory(path)
-    } else {
-        let file = File::open(path).map_err(|error| storage(path, "open", error))?;
-        file.sync_all()
-            .map_err(|error| storage(path, "synchronise", error))
+        return sync_directory(path);
+    }
+    match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(file) => match file.sync_all() {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => Ok(()),
+            Err(error) => Err(storage(path, "synchronise", error)),
+        },
+        Err(error) if error.kind() == io::ErrorKind::PermissionDenied => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(storage(path, "open for synchronisation", error)),
     }
 }
 

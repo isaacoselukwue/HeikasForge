@@ -963,4 +963,3 @@ export interface TimelineEntry {
   duration?: DurationMs | null;
   level: TimelineLevel;
 }
-
