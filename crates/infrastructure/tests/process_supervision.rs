@@ -164,18 +164,30 @@ async fn cancellation_terminates_a_running_command() {
     );
 }
 
+const CHILD_SCRIPT: &str = r"import sys, time
+while True:
+    with open(sys.argv[1], 'a') as handle:
+        handle.write('x')
+    time.sleep(0.1)
+";
+
+const SUPERVISOR_SCRIPT: &str = r"import subprocess, sys, time
+child_source = sys.argv[2]
+subprocess.Popen([sys.executable, '-c', child_source, sys.argv[1]])
+time.sleep(60)
+";
+
 #[tokio::test]
 async fn no_child_process_survives_a_timeout() {
     let directory = TempDir::new().expect("a temporary directory");
     let marker = directory.path().join("child-alive.txt");
-    let script = format!(
-        "import os, subprocess, sys, time\n\
-         child = subprocess.Popen([sys.executable, '-c', \"import time\\nwhile True:\\n    open(r'{}', 'a').write('x')\\n    time.sleep(0.1)\"])\n\
-         time.sleep(60)\n",
-        marker.display()
-    );
+    let marker_argument = marker.display().to_string();
     let (_sender, receiver) = watch::channel(false);
-    let mut specification = request(python(), &["-c", &script], directory.path());
+    let mut specification = request(
+        python(),
+        &["-c", SUPERVISOR_SCRIPT, &marker_argument, CHILD_SCRIPT],
+        directory.path(),
+    );
     specification.timeout_seconds = 2;
     let outcome = runner()
         .run(specification, receiver)
