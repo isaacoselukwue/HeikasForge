@@ -4,7 +4,8 @@ use std::str::FromStr;
 
 use heikas_domain::clock::TimeoutSeconds;
 use heikas_domain::command::{
-    CommandId, CommandKind, CommandSpecification, ReportFormat, MAXIMUM_COMMAND_TIMEOUT_SECONDS,
+    CommandCatalogue, CommandId, CommandKind, CommandSpecification, ReportFormat,
+    MAXIMUM_COMMAND_TIMEOUT_SECONDS,
 };
 use serde::{Deserialize, Serialize};
 
@@ -233,6 +234,16 @@ pub fn survey_project(repository: &Path, tracked: Option<&[String]>) -> ProjectS
     }
 
     survey.modules = selected;
+    let catalogue = CommandCatalogue {
+        commands: survey.commands.clone(),
+    };
+    if let Err(error) = catalogue.validate() {
+        survey.declines.push(SurveyDecline {
+            subject: "repository".to_string(),
+            detail: format!("the proposed commands were discarded because they are not a valid catalogue: {error}"),
+        });
+        survey.commands.clear();
+    }
     survey
 }
 
@@ -256,7 +267,14 @@ fn command(module: &DetectedModule, proposal: Proposal<'_>) -> Option<CommandSpe
         required,
         report_format,
     } = proposal;
-    let identifier = format!("{}-{suffix}", module.ecosystem.as_str());
+    let identifier = match &module.directory {
+        Some(directory) => format!(
+            "{}-{}-{suffix}",
+            module.ecosystem.as_str(),
+            slug_of(directory)
+        ),
+        None => format!("{}-{suffix}", module.ecosystem.as_str()),
+    };
     let id = CommandId::from_str(&identifier).ok()?;
     let specification = CommandSpecification {
         id,
@@ -273,6 +291,25 @@ fn command(module: &DetectedModule, proposal: Proposal<'_>) -> Option<CommandSpe
     };
     specification.validate().ok()?;
     Some(specification)
+}
+
+fn slug_of(directory: &str) -> String {
+    let mapped: String = directory
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let trimmed: String = mapped
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    trimmed.chars().take(40).collect()
 }
 
 fn push(survey: &mut ProjectSurvey, specification: Option<CommandSpecification>) {
@@ -410,13 +447,6 @@ fn propose_python(module: &DetectedModule, tracked: &[String], survey: &mut Proj
     );
 }
 
-const NODE_MANAGERS: [(&str, &str, &[&str]); 4] = [
-    ("package-lock.json", "npm", &["ci"]),
-    ("pnpm-lock.yaml", "pnpm", &["install", "--frozen-lockfile"]),
-    ("yarn.lock", "yarn", &["install", "--immutable"]),
-    ("bun.lockb", "bun", &["install", "--frozen-lockfile"]),
-];
-
 fn propose_node(
     repository: &Path,
     module: &DetectedModule,
@@ -438,100 +468,15 @@ fn propose_node(
         .and_then(|scripts| scripts.get("test"))
         .and_then(|value| value.as_str())
         .is_some();
-    if !declares_test {
-        survey.declines.push(SurveyDecline {
-            subject: module.label(),
-            detail: "`package.json` declares no `test` script, so no test command was proposed"
-                .to_string(),
-        });
-        return;
-    }
 
-    let has_tests = tracked
-        .iter()
-        .filter(|path| !is_vendored(path) && within(&module.directory, path))
-        .any(|path| is_test_path(&module_relative(&module.directory, path)));
-    if !has_tests {
-        survey.declines.push(SurveyDecline {
-            subject: module.label(),
-            detail: "`package.json` declares a `test` script but no tracked test file was found, and this ecosystem does not report how many tests ran, so no test command was proposed".to_string(),
-        });
-        return;
-    }
-
-    let manager = NODE_MANAGERS.iter().find(|(lockfile, _, _)| {
-        let candidate = match &module.directory {
-            Some(directory) => format!("{directory}/{lockfile}"),
-            None => (*lockfile).to_string(),
-        };
-        tracked.iter().any(|path| path == &candidate)
-    });
-    let Some((lockfile, program, install)) = manager else {
-        survey.declines.push(SurveyDecline {
-            subject: module.label(),
-            detail: "no tracked lockfile was found, so dependencies cannot be installed reproducibly and no test command was proposed".to_string(),
-        });
-        return;
+    let detail = if declares_test {
+        "`package.json` declares a `test` script, but running it reports no count of how many tests were executed, so a script that exits without running anything could not be told apart from a passing suite. Declare the command yourself, naming a runner that can be asked for a report, for example `--command test=npx --command-arg test=vitest --command-arg test=run`"
+    } else {
+        "`package.json` declares no `test` script, and this ecosystem reports no count of how many tests were executed, so no test command was proposed"
     };
-    let _ = lockfile;
-
-    push(
-        survey,
-        command(
-            module,
-            Proposal {
-                suffix: "install",
-                kind: CommandKind::Build,
-                program,
-                args: install,
-                timeout_seconds: 1_800,
-                required: true,
-                report_format: ReportFormat::None,
-            },
-        ),
-    );
-
-    let declares_lint = manifest
-        .as_ref()
-        .and_then(|document| document.get("scripts"))
-        .and_then(|scripts| scripts.get("lint"))
-        .and_then(|value| value.as_str())
-        .is_some();
-    if declares_lint {
-        push(
-            survey,
-            command(
-                module,
-                Proposal {
-                    suffix: "lint",
-                    kind: CommandKind::Lint,
-                    program,
-                    args: &["run", "lint"],
-                    timeout_seconds: 900,
-                    required: false,
-                    report_format: ReportFormat::None,
-                },
-            ),
-        );
-    }
-
-    push(
-        survey,
-        command(
-            module,
-            Proposal {
-                suffix: "test",
-                kind: CommandKind::Test,
-                program,
-                args: &["run", "test"],
-                timeout_seconds: 1_800,
-                required: true,
-                report_format: ReportFormat::None,
-            },
-        ),
-    );
+    let _ = tracked;
     survey.declines.push(SurveyDecline {
         subject: module.label(),
-        detail: "this ecosystem does not report how many tests ran, so a test script that exits without running anything cannot be detected".to_string(),
+        detail: detail.to_string(),
     });
 }

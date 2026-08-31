@@ -89,3 +89,27 @@ fn a_package_with_no_test_files_reports_no_executed_tests() {
     );
     assert_eq!(parse_go_test_json(stdout).total, 0);
 }
+
+#[test]
+fn a_suite_in_which_everything_is_skipped_reports_no_executed_tests() {
+    let ignored = parse_cargo_test_summary(
+        "test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s\n",
+    );
+    assert_eq!(ignored.total, 2);
+    assert_eq!(
+        ignored.total - ignored.skipped,
+        0,
+        "an ignored test has not been executed, so it is not evidence"
+    );
+
+    let skipped = parse_pytest_summary("ss\n2 skipped in 0.01s\n");
+    assert_eq!(skipped.total - skipped.skipped, 0);
+
+    let go = parse_go_test_json(concat!(
+        r#"{"Action":"skip","Package":"a","Test":"TestOne"}"#,
+        "\n",
+        r#"{"Action":"skip","Package":"a","Test":"TestTwo"}"#,
+        "\n",
+    ));
+    assert_eq!(go.total - go.skipped, 0);
+}

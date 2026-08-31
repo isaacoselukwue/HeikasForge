@@ -22,6 +22,16 @@ impl Fixture {
         let repository_root = TempDir::new().expect("a temporary repository");
         let layout = StoreLayout::new(home.path().to_path_buf());
         std::fs::create_dir_all(layout.config_directory()).expect("the directory creates");
+        for arguments in [
+            vec!["init", "--quiet"],
+            vec!["config", "user.email", "fixture@localhost.invalid"],
+            vec!["config", "user.name", "Isaac Oselukwue"],
+        ] {
+            let _ = std::process::Command::new("git")
+                .args(&arguments)
+                .current_dir(repository_root.path())
+                .status();
+        }
         let heikas = repository_root.path().join(".heikas");
         std::fs::create_dir_all(&heikas).expect("the directory creates");
         std::fs::write(heikas.join("forge.toml"), repository_document)
@@ -551,6 +561,10 @@ async fn a_repository_with_no_recognised_project_names_what_was_searched_for() {
     let fixture = Fixture::new("schema_version = 1\n");
     std::fs::write(fixture.repository().join("index.html"), "<!doctype html>\n")
         .expect("the page writes");
+    let _ = std::process::Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(fixture.repository())
+        .status();
     let configuration = fixture
         .resolver
         .detect(fixture.repository())

@@ -151,6 +151,11 @@ pub fn default_protected_patterns() -> Vec<&'static str> {
         ".heikas/**",
         ".gitmodules",
         ".gitattributes",
+        ".cargo/**",
+        ".npmrc",
+        ".yarnrc",
+        ".yarnrc.yml",
+        ".pypirc",
     ]
 }
 

@@ -636,7 +636,11 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
         }
         if configuration.commands.commands.is_empty() {
             let survey = self.survey(repository).await;
-            configuration.command_source = if survey.modules.is_empty() {
+            configuration.command_source = if !survey.tracked_listing_available {
+                CommandCatalogueSource::NotSurveyed(
+                    "the tracked file listing could not be read".to_string(),
+                )
+            } else if survey.modules.is_empty() {
                 CommandCatalogueSource::NothingDetected(
                     SURVEYED_MARKERS
                         .iter()
@@ -646,11 +650,15 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
             } else {
                 CommandCatalogueSource::Detected(survey.describe_kinds())
             };
-            configuration.detection_notes = survey
-                .declines
-                .iter()
-                .map(|decline| format!("{}: {}", decline.subject, decline.detail))
-                .collect();
+            configuration.detection_notes = if survey.tracked_listing_available {
+                survey
+                    .declines
+                    .iter()
+                    .map(|decline| format!("{}: {}", decline.subject, decline.detail))
+                    .collect()
+            } else {
+                Vec::new()
+            };
             configuration.commands = CommandCatalogue {
                 commands: survey.commands,
             };

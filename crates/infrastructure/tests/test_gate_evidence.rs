@@ -117,7 +117,7 @@ async fn a_suite_that_runs_no_tests_is_not_recorded_as_passing() {
     assert_eq!(record.tests_total, Some(0));
     let detail = record.detail.clone().unwrap_or_default();
     assert!(
-        detail.contains("no executed tests"),
+        detail.contains("executed no tests"),
         "the record must say why, detail: `{detail}`"
     );
 }
@@ -191,7 +191,25 @@ async fn a_suite_that_fails_to_build_is_reported_as_a_failure_not_as_an_empty_su
     );
     let detail = record.detail.clone().unwrap_or_default();
     assert!(
-        !detail.contains("no executed tests"),
+        !detail.contains("executed no tests"),
         "a broken suite must not be described as having run nothing, detail: `{detail}`"
+    );
+}
+
+#[tokio::test]
+async fn a_suite_in_which_every_test_is_skipped_does_not_pass() {
+    let directory = TempDir::new().expect("a temporary worktree");
+    std::fs::create_dir_all(directory.path().join("tests")).expect("the directory creates");
+    std::fs::write(
+        directory.path().join("tests").join("test_app.py"),
+        "import pytest\n\n\n@pytest.mark.skip\ndef test_one():\n    assert False\n\n\n@pytest.mark.skip\ndef test_two():\n    assert False\n",
+    )
+    .expect("the suite writes");
+
+    let record = run_gate(directory.path(), python_command()).await;
+    assert_ne!(
+        record.outcome,
+        CommandOutcome::Passed,
+        "skipping every test leaves the change unvalidated, record: {record:?}"
     );
 }

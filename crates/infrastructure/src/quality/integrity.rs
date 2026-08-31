@@ -128,7 +128,7 @@ pub async fn evaluate(
             }
         }
 
-        if !is_test_path(path) {
+        if !is_test_path(path) && !declares_tests(&baseline_text) {
             continue;
         }
 
@@ -191,6 +191,10 @@ pub async fn evaluate(
 
 fn read_current(worktree: &Path, relative: &str) -> Option<String> {
     std::fs::read_to_string(worktree.join(relative)).ok()
+}
+
+pub fn declares_tests(text: &str) -> bool {
+    count_markers(text, &TEST_FUNCTION_MARKERS) > 0
 }
 
 pub fn is_test_path(path: &str) -> bool {

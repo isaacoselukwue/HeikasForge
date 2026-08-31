@@ -129,6 +129,7 @@ pub enum CommandCatalogueSource {
     RepositoryConfiguration,
     Detected(String),
     NothingDetected(Vec<String>),
+    NotSurveyed(String),
     DeclaredForThisRun,
 }
 
@@ -514,8 +515,11 @@ impl EffectiveConfiguration {
         }
         match &self.command_source {
             CommandCatalogueSource::NothingDetected(markers) => format!(
-                "No project was recognised in `{repository}`, because none of {} is present.",
+                "No project was recognised in `{repository}`, because no tracked file is named {}. Only tracked files are surveyed, because a candidate worktree is checked out from the baseline commit and holds nothing else.",
                 describe_markers(markers)
+            ),
+            CommandCatalogueSource::NotSurveyed(detail) => format!(
+                "`{repository}` could not be surveyed for a project: {detail}"
             ),
             CommandCatalogueSource::Detected(kind) => {
                 if self.commands.commands.is_empty() {

@@ -1,5 +1,28 @@
 # Quality providers
 
+## What a test gate proves, and what it does not
+
+A gate that exits zero having executed nothing is not evidence. Every test command the
+detector proposes therefore declares a report format that yields a count of executed
+tests, read from the command's own standard output, and a required test command that
+executed nothing is recorded as missing evidence rather than as a pass. Skipped and
+ignored tests do not count as executed, so a suite in which every test is skipped fails
+the same way.
+
+Where no count can be obtained the detector declines rather than proposing a gate it
+cannot check. That is why a Node project is declined even when it declares a test script:
+the script is an opaque command whose executed count is not reported, so a stub that exits
+without running anything could not be told apart from a passing suite. The operator can
+still declare such a command deliberately, which is a decision they make with full sight
+of it.
+
+The count defends against absence, not against a hostile repository. Running a project's
+own build tool executes code from that repository by construction: compiling and running
+its test binaries is the entire point. A repository can therefore choose what its test
+process prints, and the count is only as trustworthy as the repository it came from. It
+is a guard against a repository that has no tests, not a guard against one that lies.
+Nothing downstream should be read as a claim that a count is tamper resistant.
+
 ## The stable report comes first
 
 Every provider normalises into one `ReviewReport` shape before any provider-specific logic exists. A report carries its schema version, the provider name, whether it is required or advisory, whether it passed, the quality gate outcome, its issues, its metrics, its artefact references and its start and finish times.

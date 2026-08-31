@@ -183,7 +183,8 @@ pub fn build_record(
     let counted = specification.report_format.counts_executed_tests() || summary.total > 0;
     let reports_executed_tests = specification.report_format.counts_executed_tests()
         && specification.kind == CommandKind::Test;
-    let executed_nothing = reports_executed_tests && summary.total == 0;
+    let executed = summary.total.saturating_sub(summary.skipped);
+    let executed_nothing = reports_executed_tests && executed == 0;
 
     let command_outcome = if outcome.cancelled {
         CommandOutcome::Cancelled
@@ -197,7 +198,7 @@ pub fn build_record(
         CommandOutcome::Passed
     };
 
-    const NO_EXECUTED_TESTS: &str = "the test command reported no executed tests, so it is no evidence that the change is correct";
+    const NO_EXECUTED_TESTS: &str = "the test command executed no tests, counting skipped and ignored tests as not executed, so it is no evidence that the change is correct";
     let detail = match command_outcome {
         CommandOutcome::Failed if executed_nothing => Some(format!(
             "{NO_EXECUTED_TESTS}. {}",

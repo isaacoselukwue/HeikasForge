@@ -178,6 +178,10 @@ export type CommandCatalogueSource =
       detail: string[];
     }
   | {
+      kind: "not_surveyed";
+      detail: string;
+    }
+  | {
       kind: "declared_for_this_run";
     };
 

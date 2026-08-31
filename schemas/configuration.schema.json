@@ -792,6 +792,24 @@
         {
           "type": "object",
           "required": [
+            "detail",
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "not_surveyed"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
             "kind"
           ],
           "properties": {
