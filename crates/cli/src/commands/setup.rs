@@ -16,6 +16,7 @@ pub struct InitOutcome {
     pub internal_notes_path: String,
     pub ready: bool,
     pub blocking_detail: Option<String>,
+    pub detection_notes: Vec<String>,
 }
 
 pub async fn init(
@@ -41,11 +42,12 @@ pub async fn init(
     let notes = internal_notes::write(&repository)?;
     let outcome = InitOutcome {
         configuration_path: written.display().to_string(),
-        project_kind: heikas_infrastructure::configuration::detection::detect_project_kind(
-            &repository,
-        )
-        .as_str()
-        .to_string(),
+        project_kind: match &configuration.command_source {
+            heikas_application::configuration::CommandCatalogueSource::Detected(kinds) => {
+                kinds.clone()
+            }
+            _ => "unknown".to_string(),
+        },
         commands: configuration
             .commands
             .commands
@@ -58,6 +60,7 @@ pub async fn init(
             .validate()
             .err()
             .map(|error| error.to_string()),
+        detection_notes: configuration.detection_notes.clone(),
     };
     context.emit(&outcome, |palette| {
         let mut text = String::new();
@@ -79,6 +82,9 @@ pub async fn init(
             for command in &outcome.commands {
                 text.push_str(&format!("  {command}\n"));
             }
+        }
+        for note in &outcome.detection_notes {
+            text.push_str(&palette.muted(&format!("Note: {note}\n")));
         }
         if let Some(detail) = &outcome.blocking_detail {
             text.push_str(&palette.warning(&format!("\n{detail}\n")));

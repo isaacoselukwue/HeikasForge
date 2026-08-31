@@ -88,6 +88,13 @@
           "$ref": "#/definitions/CommandCatalogueSource"
         }
       ]
+    },
+    "detection_notes": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   },
   "definitions": {
@@ -518,6 +525,9 @@
         "lcov",
         "sarif",
         "cargo_test_json",
+        "cargo_test_text",
+        "go_test_json",
+        "pytest_text",
         "text"
       ]
     },

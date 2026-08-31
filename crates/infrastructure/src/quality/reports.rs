@@ -362,3 +362,147 @@ pub fn parse_sarif(contents: &str, provider: &str) -> ApplicationResult<Vec<Revi
     }
     Ok(issues)
 }
+
+pub fn parse_cargo_test_summary(contents: &str) -> TestSummary {
+    let mut summary = TestSummary::default();
+    for line in contents.lines() {
+        let Some(rest) = line.trim().strip_prefix("test result:") else {
+            continue;
+        };
+        let Some((_, counts)) = rest.split_once('.') else {
+            continue;
+        };
+        for field in counts.split(';') {
+            let mut parts = field.split_whitespace();
+            let (Some(value), Some(label)) = (parts.next(), parts.next()) else {
+                continue;
+            };
+            let Ok(count) = value.parse::<u32>() else {
+                continue;
+            };
+            match label {
+                "passed" => summary.total += count,
+                "failed" => {
+                    summary.total += count;
+                    summary.failed += count;
+                }
+                "ignored" => {
+                    summary.total += count;
+                    summary.skipped += count;
+                }
+                _ => {}
+            }
+        }
+    }
+    summary
+}
+
+pub fn parse_pytest_summary(contents: &str) -> TestSummary {
+    let mut summary = TestSummary::default();
+    for line in contents.lines().rev() {
+        let trimmed = line.trim().trim_matches('=').trim();
+        if trimmed.starts_with("no tests ran") {
+            return TestSummary::default();
+        }
+        if !trimmed.contains(" in ") {
+            continue;
+        }
+        let mut recognised = false;
+        for field in trimmed.split(',') {
+            let field = field.trim();
+            let head = field.split(" in ").next().unwrap_or(field).trim();
+            let mut parts = head.split_whitespace();
+            let (Some(value), Some(label)) = (parts.next(), parts.next()) else {
+                continue;
+            };
+            let Ok(count) = value.parse::<u32>() else {
+                continue;
+            };
+            match label {
+                "passed" | "xpassed" => {
+                    summary.total += count;
+                    recognised = true;
+                }
+                "failed" | "error" | "errors" => {
+                    summary.total += count;
+                    summary.failed += count;
+                    recognised = true;
+                }
+                "skipped" | "deselected" | "xfailed" => {
+                    summary.total += count;
+                    summary.skipped += count;
+                    recognised = true;
+                }
+                _ => {}
+            }
+        }
+        if recognised {
+            return summary;
+        }
+        summary = TestSummary::default();
+    }
+    summary
+}
+
+#[derive(Debug, Deserialize)]
+struct GoTestEvent {
+    #[serde(rename = "Action")]
+    action: Option<String>,
+    #[serde(rename = "Test")]
+    test: Option<String>,
+    #[serde(rename = "Package")]
+    package: Option<String>,
+    #[serde(rename = "Output")]
+    output: Option<String>,
+}
+
+pub fn parse_go_test_json(contents: &str) -> TestSummary {
+    let mut summary = TestSummary::default();
+    let mut failure_output: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for line in contents.lines() {
+        let Ok(event) = serde_json::from_str::<GoTestEvent>(line) else {
+            continue;
+        };
+        let Some(test) = event.test.clone() else {
+            continue;
+        };
+        let key = format!("{}::{test}", event.package.clone().unwrap_or_default());
+        if event.action.as_deref() == Some("output") {
+            if let Some(output) = event.output {
+                let entry = failure_output.entry(key).or_default();
+                if entry.len() < 4_000 {
+                    entry.push_str(&output);
+                }
+            }
+            continue;
+        }
+        match event.action.as_deref() {
+            Some("pass") => summary.total += 1,
+            Some("skip") => {
+                summary.total += 1;
+                summary.skipped += 1;
+            }
+            Some("fail") => {
+                summary.total += 1;
+                summary.failed += 1;
+                let package = event.package.clone().unwrap_or_default();
+                summary.failures.push(TestFailureDetail {
+                    suite: package,
+                    case: test,
+                    message: failure_output
+                        .get(&key)
+                        .cloned()
+                        .unwrap_or_else(|| "the test failed".to_string())
+                        .chars()
+                        .take(4_000)
+                        .collect(),
+                    file: None,
+                    line: None,
+                });
+            }
+            _ => {}
+        }
+    }
+    summary
+}

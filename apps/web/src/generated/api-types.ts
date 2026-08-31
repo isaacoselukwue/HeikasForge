@@ -146,7 +146,16 @@ export type CommandKind =
   | "static_analysis"
   | "policy"
   | "build";
-export type ReportFormat = "none" | "j_unit_xml" | "lcov" | "sarif" | "cargo_test_json" | "text";
+export type ReportFormat =
+  | "none"
+  | "j_unit_xml"
+  | "lcov"
+  | "sarif"
+  | "cargo_test_json"
+  | "cargo_test_text"
+  | "go_test_json"
+  | "pytest_text"
+  | "text";
 export type RepositoryTrustState = "no_repository_configuration" | "trusted" | "untrusted";
 export type ContentDigest = string;
 export type WithheldReason =
@@ -189,6 +198,7 @@ export interface EffectiveConfiguration {
   demonstration_mode: boolean;
   repository_trust?: RepositoryTrustDecision;
   command_source?: CommandCatalogueSource;
+  detection_notes?: string[];
 }
 export interface RunBudgets {
   candidates: number;

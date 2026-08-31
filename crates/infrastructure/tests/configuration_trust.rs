@@ -27,7 +27,15 @@ impl Fixture {
         std::fs::write(heikas.join("forge.toml"), repository_document)
             .expect("the configuration writes");
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let resolver = LayeredConfigurationResolver::new(layout.clone(), clock);
+        let processes: Arc<dyn heikas_application::ports::process::ProcessRunner> =
+            Arc::new(heikas_infrastructure::process::SupervisedProcessRunner::new(Vec::new()));
+        let git: Arc<dyn heikas_application::ports::git::GitService> =
+            Arc::new(heikas_infrastructure::git::CommandLineGitService::new(
+                processes,
+                layout.clone(),
+                "Isaac Oselukwue".to_string(),
+            ));
+        let resolver = LayeredConfigurationResolver::new(layout.clone(), clock, git);
         Self {
             _home: home,
             repository_root,

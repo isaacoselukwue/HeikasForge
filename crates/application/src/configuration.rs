@@ -408,6 +408,8 @@ pub struct EffectiveConfiguration {
     pub repository_trust: RepositoryTrustDecision,
     #[serde(default)]
     pub command_source: CommandCatalogueSource,
+    #[serde(default)]
+    pub detection_notes: Vec<String>,
 }
 
 impl EffectiveConfiguration {
@@ -446,6 +448,7 @@ impl EffectiveConfiguration {
         for command in &self.commands.commands {
             if command.required
                 && command.report_format != ReportFormat::None
+                && !command.report_format.reads_stdout_only()
                 && command.report_path.is_none()
             {
                 return Err(ApplicationError::InvalidConfiguration(format!(
@@ -474,8 +477,23 @@ impl EffectiveConfiguration {
             .map(|kind| format!("--command {}=<program>", kind.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
+        let notes = if self.detection_notes.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " {}",
+                self.detection_notes
+                    .iter()
+                    .map(|note| {
+                        let trimmed = note.trim_end_matches('.');
+                        format!("{trimmed}.")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            )
+        };
         format!(
-            "the {} quality profile needs a command of kind {kinds}. {} Declare them for this run with `{declarations}`, giving each argument separately as `--command-arg <kind>=<argument>`, or write `[[commands]]` entries into `{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` and run `heikas trust {}`.",
+            "the {} quality profile needs a command of kind {kinds}. {}{notes} Declare them for this run with `{declarations}`, giving each argument separately as `--command-arg <kind>=<argument>`, or write `[[commands]]` entries into `{REPOSITORY_CONFIGURATION_RELATIVE_PATH}` and run `heikas trust {}`.",
             self.quality.profile.as_str(),
             self.command_source_detail(),
             self.repository_path.display()
@@ -499,16 +517,27 @@ impl EffectiveConfiguration {
                 "No project was recognised in `{repository}`, because none of {} is present.",
                 describe_markers(markers)
             ),
-            CommandCatalogueSource::Detected(kind) => format!(
-                "`{repository}` was detected as a {kind} project, which proposed {} commands.",
-                self.commands.commands.len()
-            ),
+            CommandCatalogueSource::Detected(kind) => {
+                if self.commands.commands.is_empty() {
+                    format!("`{repository}` was recognised as a {kind} project, but no command could be proposed for it.")
+                } else {
+                    format!(
+                        "`{repository}` was recognised as a {kind} project, which proposed {} {}.",
+                        self.commands.commands.len(),
+                        if self.commands.commands.len() == 1 {
+                            "command"
+                        } else {
+                            "commands"
+                        }
+                    )
+                }
+            }
             CommandCatalogueSource::DeclaredForThisRun => format!(
                 "{} commands were declared for this run.",
                 self.commands.commands.len()
             ),
             CommandCatalogueSource::UserConfiguration => format!(
-                "Your user configuration declares {} commands.",
+                "Your user configuration declares {} commands, none of which covers every required kind.",
                 self.commands.commands.len()
             ),
             CommandCatalogueSource::RepositoryConfiguration => format!(

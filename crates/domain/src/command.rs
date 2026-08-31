@@ -176,6 +176,9 @@ pub enum ReportFormat {
     Lcov,
     Sarif,
     CargoTestJson,
+    CargoTestText,
+    GoTestJson,
+    PytestText,
     Text,
 }
 
@@ -187,8 +190,34 @@ impl ReportFormat {
             ReportFormat::Lcov => "lcov",
             ReportFormat::Sarif => "sarif",
             ReportFormat::CargoTestJson => "cargo_test_json",
+            ReportFormat::CargoTestText => "cargo_test_text",
+            ReportFormat::GoTestJson => "go_test_json",
+            ReportFormat::PytestText => "pytest_text",
             ReportFormat::Text => "text",
         }
+    }
+}
+
+impl ReportFormat {
+    pub fn reads_stdout_only(&self) -> bool {
+        matches!(
+            self,
+            ReportFormat::CargoTestJson
+                | ReportFormat::CargoTestText
+                | ReportFormat::GoTestJson
+                | ReportFormat::PytestText
+        )
+    }
+
+    pub fn counts_executed_tests(&self) -> bool {
+        matches!(
+            self,
+            ReportFormat::JUnitXml
+                | ReportFormat::CargoTestJson
+                | ReportFormat::CargoTestText
+                | ReportFormat::GoTestJson
+                | ReportFormat::PytestText
+        )
     }
 }
 
@@ -202,6 +231,9 @@ impl FromStr for ReportFormat {
             "lcov" => Ok(ReportFormat::Lcov),
             "sarif" => Ok(ReportFormat::Sarif),
             "cargo_test_json" => Ok(ReportFormat::CargoTestJson),
+            "cargo_test_text" => Ok(ReportFormat::CargoTestText),
+            "go_test_json" => Ok(ReportFormat::GoTestJson),
+            "pytest_text" => Ok(ReportFormat::PytestText),
             "text" => Ok(ReportFormat::Text),
             other => Err(DomainError::InvalidIdentifier {
                 kind: "ReportFormat",
@@ -251,7 +283,10 @@ impl CommandSpecification {
         if let Some(report_path) = &self.report_path {
             crate::path_policy::RelativeWorkspacePath::parse(report_path)?;
         }
-        if self.report_format != ReportFormat::None && self.report_path.is_none() {
+        if self.report_format != ReportFormat::None
+            && !self.report_format.reads_stdout_only()
+            && self.report_path.is_none()
+        {
             return Err(DomainError::MissingField {
                 field: "report_path",
             });

@@ -14,7 +14,8 @@ use heikas_domain::test_evidence::{
 };
 
 use crate::quality::reports::{
-    parse_cargo_test_json, parse_junit_xml, parse_lcov_coverage, TestSummary,
+    parse_cargo_test_json, parse_cargo_test_summary, parse_go_test_json, parse_junit_xml,
+    parse_lcov_coverage, parse_pytest_summary, TestSummary,
 };
 
 pub struct CommandTestGateRunner {
@@ -120,6 +121,15 @@ pub fn build_record(
         ReportFormat::CargoTestJson => {
             summary = parse_cargo_test_json(&outcome.stdout_text());
         }
+        ReportFormat::CargoTestText => {
+            summary = parse_cargo_test_summary(&outcome.stdout_text());
+        }
+        ReportFormat::GoTestJson => {
+            summary = parse_go_test_json(&outcome.stdout_text());
+        }
+        ReportFormat::PytestText => {
+            summary = parse_pytest_summary(&outcome.stdout_text());
+        }
         ReportFormat::JUnitXml => match read_report(&context.worktree, specification)? {
             Some(contents) => {
                 summary = parse_junit_xml(&contents)?;
@@ -170,7 +180,8 @@ pub fn build_record(
         coverage = parse_lcov_coverage(&outcome.stdout_text());
     }
 
-    let reports_executed_tests = specification.report_format != ReportFormat::None
+    let counted = specification.report_format.counts_executed_tests() || summary.total > 0;
+    let reports_executed_tests = specification.report_format.counts_executed_tests()
         && specification.kind == CommandKind::Test;
     let executed_nothing = reports_executed_tests && summary.total == 0;
 
@@ -178,27 +189,27 @@ pub fn build_record(
         CommandOutcome::Cancelled
     } else if outcome.timed_out {
         CommandOutcome::TimedOut
+    } else if !specification.is_success(outcome.exit_code) || summary.failed > 0 {
+        CommandOutcome::Failed
     } else if specification.required && (report_missing || executed_nothing) {
         CommandOutcome::ReportMissing
-    } else if specification.is_success(outcome.exit_code) && summary.failed == 0 {
-        CommandOutcome::Passed
     } else {
-        CommandOutcome::Failed
+        CommandOutcome::Passed
     };
 
-    let detail = if command_outcome == CommandOutcome::Failed {
-        Some(failure_detail(outcome, &summary))
-    } else if command_outcome == CommandOutcome::ReportMissing {
-        Some(if executed_nothing {
-            "the required test command reported no executed tests, so it is no evidence that the change is correct".to_string()
-        } else {
-            format!(
-                "the required report `{}` was not produced",
-                specification.report_path.clone().unwrap_or_default()
-            )
-        })
-    } else {
-        None
+    const NO_EXECUTED_TESTS: &str = "the test command reported no executed tests, so it is no evidence that the change is correct";
+    let detail = match command_outcome {
+        CommandOutcome::Failed if executed_nothing => Some(format!(
+            "{NO_EXECUTED_TESTS}. {}",
+            failure_detail(outcome, &summary)
+        )),
+        CommandOutcome::Failed => Some(failure_detail(outcome, &summary)),
+        CommandOutcome::ReportMissing if executed_nothing => Some(NO_EXECUTED_TESTS.to_string()),
+        CommandOutcome::ReportMissing => Some(format!(
+            "the required report `{}` was not produced",
+            specification.report_path.clone().unwrap_or_default()
+        )),
+        _ => None,
     };
 
     Ok((
@@ -212,21 +223,9 @@ pub fn build_record(
             stderr_artifact: Some(ContentDigest::of_bytes(&outcome.stderr)),
             stdout_truncated: outcome.stdout_truncated,
             stderr_truncated: outcome.stderr_truncated,
-            tests_total: if summary.total > 0 {
-                Some(summary.total)
-            } else {
-                None
-            },
-            tests_failed: if summary.total > 0 {
-                Some(summary.failed)
-            } else {
-                None
-            },
-            tests_skipped: if summary.total > 0 {
-                Some(summary.skipped)
-            } else {
-                None
-            },
+            tests_total: counted.then_some(summary.total),
+            tests_failed: counted.then_some(summary.failed),
+            tests_skipped: counted.then_some(summary.skipped),
             failures: limit_failures(summary.failures),
             line_coverage_percent: coverage,
             detail,

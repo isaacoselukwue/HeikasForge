@@ -13,6 +13,7 @@ use heikas_application::configuration::{
 use heikas_application::error::{ApplicationError, ApplicationResult};
 use heikas_application::model::request::CreateRunRequest;
 use heikas_application::ports::clock::Clock;
+use heikas_application::ports::git::GitService;
 use heikas_application::ports::runtime::ConfigurationResolver;
 use heikas_domain::budget::{CandidateCount, QualityProfile, RunBudgets};
 use heikas_domain::clock::TimeoutSeconds;
@@ -26,7 +27,7 @@ use heikas_domain::retry::{NodeTimeouts, RetryPolicy};
 use heikas_domain::run::CommitPolicy;
 
 use crate::atomic::write_atomic;
-use crate::configuration::detection::{detect_project_kind, proposed_commands, PROJECT_MARKERS};
+use crate::configuration::detection::{survey_project, ProjectSurvey, SURVEYED_MARKERS};
 use crate::configuration::document::{CommandSection, ForgeDocument};
 use crate::configuration::trust::FileRepositoryTrustStore;
 use crate::layout::StoreLayout;
@@ -98,20 +99,33 @@ impl AuthorityGate {
     }
 }
 
+const MAXIMUM_SURVEYED_PATHS: usize = 20_000;
+
 pub struct LayeredConfigurationResolver {
     layout: StoreLayout,
     trust: FileRepositoryTrustStore,
     clock: Arc<dyn Clock>,
+    git: Arc<dyn GitService>,
 }
 
 impl LayeredConfigurationResolver {
-    pub fn new(layout: StoreLayout, clock: Arc<dyn Clock>) -> Self {
+    pub fn new(layout: StoreLayout, clock: Arc<dyn Clock>, git: Arc<dyn GitService>) -> Self {
         let trust = FileRepositoryTrustStore::new(&layout);
         Self {
             layout,
             trust,
             clock,
+            git,
         }
+    }
+
+    async fn survey(&self, repository: &Path) -> ProjectSurvey {
+        let tracked = self
+            .git
+            .list_paths(repository, MAXIMUM_SURVEYED_PATHS)
+            .await
+            .ok();
+        survey_project(repository, tracked.as_deref())
     }
 
     fn base_configuration(repository: &Path) -> EffectiveConfiguration {
@@ -138,6 +152,7 @@ impl LayeredConfigurationResolver {
             demonstration_mode: false,
             repository_trust: RepositoryTrustDecision::default(),
             command_source: CommandCatalogueSource::default(),
+            detection_notes: Vec::new(),
         }
     }
 
@@ -620,19 +635,25 @@ impl ConfigurationResolver for LayeredConfigurationResolver {
             }
         }
         if configuration.commands.commands.is_empty() {
-            let kind = detect_project_kind(repository);
-            let proposed = proposed_commands(kind);
-            configuration.command_source = if proposed.is_empty() {
+            let survey = self.survey(repository).await;
+            configuration.command_source = if survey.modules.is_empty() {
                 CommandCatalogueSource::NothingDetected(
-                    PROJECT_MARKERS
+                    SURVEYED_MARKERS
                         .iter()
                         .map(|marker| marker.to_string())
                         .collect(),
                 )
             } else {
-                CommandCatalogueSource::Detected(kind.as_str().to_string())
+                CommandCatalogueSource::Detected(survey.describe_kinds())
             };
-            configuration.commands = CommandCatalogue { commands: proposed };
+            configuration.detection_notes = survey
+                .declines
+                .iter()
+                .map(|decline| format!("{}: {}", decline.subject, decline.detail))
+                .collect();
+            configuration.commands = CommandCatalogue {
+                commands: survey.commands,
+            };
         }
         Ok(configuration)
     }
@@ -802,6 +823,34 @@ pub fn render_document(configuration: &EffectiveConfiguration) -> String {
         text.push_str(&format!("kind = {}\n", toml_string(command.kind.as_str())));
         text.push_str(&format!("timeout_seconds = {}\n", command.timeout.get()));
         text.push_str(&format!("required = {}\n", command.required));
+        if let Some(subdirectory) = &command.working_subdirectory {
+            text.push_str(&format!(
+                "working_subdirectory = {}\n",
+                toml_string(subdirectory)
+            ));
+        }
+        if command.success_exit_codes != vec![0] {
+            text.push_str(&format!(
+                "success_exit_codes = [{}]\n",
+                command
+                    .success_exit_codes
+                    .iter()
+                    .map(|code| code.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !command.environment.is_empty() {
+            text.push_str(&format!(
+                "environment = [{}]\n",
+                command
+                    .environment
+                    .iter()
+                    .map(|(name, value)| format!("[{}, {}]", toml_string(name), toml_string(value)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
         if command.report_format != ReportFormat::None {
             text.push_str(&format!(
                 "report_format = {}\n",
@@ -828,6 +877,10 @@ pub fn render_document(configuration: &EffectiveConfiguration) -> String {
     text.push_str(&format!(
         "protected_paths = {}\n",
         toml_string_array(configuration.path_policy.protected_patterns.iter().cloned())
+    ));
+    text.push_str(&format!(
+        "sensitive_paths = {}\n",
+        toml_string_array(configuration.path_policy.sensitive_patterns.iter().cloned())
     ));
     text
 }

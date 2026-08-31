@@ -60,6 +60,7 @@ fn configuration(
         demonstration_mode: false,
         repository_trust: Default::default(),
         command_source: Default::default(),
+        detection_notes: Vec::new(),
     }
 }
 
@@ -120,4 +121,62 @@ fn a_value_containing_a_quote_or_control_character_is_escaped() {
         parsed["policy"]["protected_paths"][0].as_str(),
         Some("pattern\"with\"quotes")
     );
+}
+
+#[test]
+fn every_field_the_renderer_emits_is_accepted_by_the_parser() {
+    let specification = CommandSpecification {
+        id: CommandId::from_str("node-test").expect("a command identifier"),
+        kind: CommandKind::Test,
+        program: "npm".to_string(),
+        args: vec!["run".to_string(), "test".to_string()],
+        working_subdirectory: Some("services/api".to_string()),
+        timeout: TimeoutSeconds::clamped(1_800, MAXIMUM_COMMAND_TIMEOUT_SECONDS),
+        required: true,
+        report_format: ReportFormat::PytestText,
+        report_path: None,
+        environment: vec![("CI".to_string(), "1".to_string())],
+        success_exit_codes: vec![0, 5],
+    };
+    let document = render_document(&configuration(
+        vec![specification.clone()],
+        vec![".git/**".to_string()],
+    ));
+
+    let parsed: toml::Value = toml::from_str(&document).expect("the document is valid TOML");
+    let commands = parsed
+        .get("commands")
+        .and_then(|value| value.as_array())
+        .expect("a commands array");
+    let entry = commands.first().expect("one command");
+    assert_eq!(
+        entry.get("working_subdirectory").and_then(|v| v.as_str()),
+        Some("services/api"),
+        "a module subdirectory must survive being written and read back"
+    );
+    assert!(entry.get("success_exit_codes").is_some());
+    assert!(entry.get("environment").is_some());
+    assert_eq!(
+        entry.get("report_format").and_then(|v| v.as_str()),
+        Some("pytest_text"),
+        "the report format decides whether an empty suite can be detected, so it must survive"
+    );
+
+    let round_tripped: heikas_infrastructure::configuration::document::ForgeDocument =
+        toml::from_str(&document).expect("the renderer only emits keys the parser accepts");
+    let sections = round_tripped.commands.expect("commands parse back");
+    let section = sections.first().expect("one command section");
+    assert_eq!(
+        section.working_subdirectory.as_deref(),
+        Some("services/api")
+    );
+    assert_eq!(
+        section.success_exit_codes.clone().unwrap_or_default(),
+        vec![0, 5]
+    );
+    assert_eq!(
+        section.environment.clone().unwrap_or_default(),
+        vec![("CI".to_string(), "1".to_string())]
+    );
+    assert_eq!(section.report_format.as_deref(), Some("pytest_text"));
 }

@@ -50,6 +50,7 @@ fn configuration(repository: &std::path::Path) -> EffectiveConfiguration {
         demonstration_mode: true,
         repository_trust: Default::default(),
         command_source: Default::default(),
+        detection_notes: Vec::new(),
     }
 }
 
