@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a capability or a change of behaviour
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: Describe the situation you are in, rather than the solution you have in mind.
+      placeholder: My repository builds with Bazel, so no test command is detected and I have to declare one every run.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried or considered
+      description: >
+        For a detection request, say whether declaring the command with `--command` or
+        writing it into `.heikas/forge.toml` is workable for you today.
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints this project holds
+      description: >
+        Requests are weighed against these. Ticking them is not required, but saying how a
+        proposal sits with them helps a great deal.
+      options:
+        - label: The documented default path must keep working without a paid account.
+        - label: A test gate that executed nothing must never be recorded as passing.
+        - label: Repository content must never decide which program runs without a trust decision.

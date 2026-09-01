@@ -37,6 +37,7 @@ pub enum Ecosystem {
     Go,
     Python,
     Node,
+    Cmake,
 }
 
 impl Ecosystem {
@@ -46,6 +47,7 @@ impl Ecosystem {
             Ecosystem::Go => "go",
             Ecosystem::Python => "python",
             Ecosystem::Node => "node",
+            Ecosystem::Cmake => "cmake",
         }
     }
 
@@ -60,6 +62,7 @@ impl Ecosystem {
                 "requirements.txt",
             ],
             Ecosystem::Node => &["package.json"],
+            Ecosystem::Cmake => &["CMakeLists.txt"],
         }
     }
 
@@ -68,7 +71,8 @@ impl Ecosystem {
     }
 }
 
-pub const SURVEYED_MARKERS: [&str; 7] = [
+pub const SURVEYED_MARKERS: [&str; 8] = [
+    "CMakeLists.txt",
     "Cargo.toml",
     "go.mod",
     "package.json",
@@ -194,6 +198,7 @@ pub fn survey_project(repository: &Path, tracked: Option<&[String]>) -> ProjectS
             Ecosystem::Go,
             Ecosystem::Node,
             Ecosystem::Python,
+            Ecosystem::Cmake,
         ] {
             if ecosystem.markers().contains(&name) {
                 discovered.push(DetectedModule {
@@ -230,6 +235,7 @@ pub fn survey_project(repository: &Path, tracked: Option<&[String]>) -> ProjectS
             Ecosystem::Go => propose_go(module, &mut survey),
             Ecosystem::Python => propose_python(module, tracked, &mut survey),
             Ecosystem::Node => propose_node(repository, module, tracked, &mut survey),
+            Ecosystem::Cmake => propose_cmake(repository, module, tracked, &mut survey),
         }
     }
 
@@ -447,6 +453,60 @@ fn propose_python(module: &DetectedModule, tracked: &[String], survey: &mut Proj
     );
 }
 
+const NODE_RUNNERS: [&str; 3] = ["vitest", "jest", "mocha"];
+
+const NODE_MANAGERS: [(&str, &str, &[&str]); 4] = [
+    ("package-lock.json", "npm", &["ci", "--ignore-scripts"]),
+    (
+        "pnpm-lock.yaml",
+        "pnpm",
+        &["install", "--frozen-lockfile", "--ignore-scripts"],
+    ),
+    (
+        "yarn.lock",
+        "yarn",
+        &["install", "--immutable", "--mode=skip-build"],
+    ),
+    (
+        "bun.lockb",
+        "bun",
+        &["install", "--frozen-lockfile", "--ignore-scripts"],
+    ),
+];
+
+fn declared_script<'a>(manifest: Option<&'a serde_json::Value>, name: &str) -> Option<&'a str> {
+    manifest?.get("scripts")?.get(name)?.as_str()
+}
+
+fn recognised_node_runner(manifest: Option<&serde_json::Value>) -> Option<&'static str> {
+    if let Some(script) = declared_script(manifest, "test") {
+        if script.contains("node --test") || script.contains("node:test") {
+            return Some("the Node built in test runner");
+        }
+    }
+    let development = manifest.and_then(|document| document.get("devDependencies"));
+    let dependencies = manifest.and_then(|document| document.get("dependencies"));
+    for runner in NODE_RUNNERS {
+        let present = development.and_then(|value| value.get(runner)).is_some()
+            || dependencies.and_then(|value| value.get(runner)).is_some();
+        if present {
+            return Some(match runner {
+                "vitest" => "vitest",
+                "jest" => "jest",
+                _ => "mocha",
+            });
+        }
+        if declared_script(manifest, "test").is_some_and(|script| script.contains(runner)) {
+            return Some(match runner {
+                "vitest" => "vitest",
+                "jest" => "jest",
+                _ => "mocha",
+            });
+        }
+    }
+    None
+}
+
 fn propose_node(
     repository: &Path,
     module: &DetectedModule,
@@ -462,21 +522,170 @@ fn propose_node(
         .flatten()
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
 
-    let declares_test = manifest
-        .as_ref()
-        .and_then(|document| document.get("scripts"))
-        .and_then(|scripts| scripts.get("test"))
-        .and_then(|value| value.as_str())
-        .is_some();
+    if declared_script(manifest.as_ref(), "test").is_none() {
+        survey.declines.push(SurveyDecline {
+            subject: module.label(),
+            detail: "`package.json` declares no `test` script, so no test command was proposed"
+                .to_string(),
+        });
+        return;
+    }
 
-    let detail = if declares_test {
-        "`package.json` declares a `test` script, but running it reports no count of how many tests were executed, so a script that exits without running anything could not be told apart from a passing suite. Declare the command yourself, naming a runner that can be asked for a report, for example `--command test=npx --command-arg test=vitest --command-arg test=run`"
-    } else {
-        "`package.json` declares no `test` script, and this ecosystem reports no count of how many tests were executed, so no test command was proposed"
+    let Some(runner) = recognised_node_runner(manifest.as_ref()) else {
+        survey.declines.push(SurveyDecline {
+            subject: module.label(),
+            detail: "the test runner could not be identified from `package.json`, so the number of tests it executes could not be read and no test command was proposed. Vitest, Jest, Mocha and the Node built in runner are recognised".to_string(),
+        });
+        return;
     };
-    let _ = tracked;
+
+    let manager = NODE_MANAGERS.iter().find(|(lockfile, _, _)| {
+        let candidate = match &module.directory {
+            Some(directory) => format!("{directory}/{lockfile}"),
+            None => (*lockfile).to_string(),
+        };
+        tracked.iter().any(|path| path == &candidate)
+    });
+    let Some((_, program, install)) = manager else {
+        survey.declines.push(SurveyDecline {
+            subject: module.label(),
+            detail: "no tracked lockfile was found, so dependencies cannot be installed reproducibly in a clean worktree and no test command was proposed".to_string(),
+        });
+        return;
+    };
+
+    push(
+        survey,
+        command(
+            module,
+            Proposal {
+                suffix: "install",
+                kind: CommandKind::Build,
+                program,
+                args: install,
+                timeout_seconds: 1_800,
+                required: true,
+                report_format: ReportFormat::None,
+            },
+        ),
+    );
+    if declared_script(manifest.as_ref(), "lint").is_some() {
+        push(
+            survey,
+            command(
+                module,
+                Proposal {
+                    suffix: "lint",
+                    kind: CommandKind::Lint,
+                    program,
+                    args: &["run", "lint"],
+                    timeout_seconds: 900,
+                    required: false,
+                    report_format: ReportFormat::None,
+                },
+            ),
+        );
+    }
+    push(
+        survey,
+        command(
+            module,
+            Proposal {
+                suffix: "test",
+                kind: CommandKind::Test,
+                program,
+                args: &["run", "test"],
+                timeout_seconds: 1_800,
+                required: true,
+                report_format: ReportFormat::NodeTestText,
+            },
+        ),
+    );
     survey.declines.push(SurveyDecline {
         subject: module.label(),
-        detail: detail.to_string(),
+        detail: format!(
+            "the test command was proposed on the understanding that it reports its results through {runner}, and dependencies are installed without running lifecycle scripts"
+        ),
     });
+}
+
+fn propose_cmake(
+    repository: &Path,
+    module: &DetectedModule,
+    tracked: &[String],
+    survey: &mut ProjectSurvey,
+) {
+    let ignore_path = match &module.directory {
+        Some(directory) => format!("{directory}/.gitignore"),
+        None => ".gitignore".to_string(),
+    };
+    let ignores_build = read_confined_file(repository, &ignore_path, MAXIMUM_MANIFEST_BYTES)
+        .ok()
+        .flatten()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .is_some_and(|contents| {
+            contents.lines().any(|line| {
+                let trimmed = line.trim().trim_end_matches('/');
+                trimmed == "build" || trimmed == "/build"
+            })
+        });
+    let _ = tracked;
+    if !ignores_build {
+        survey.declines.push(SurveyDecline {
+            subject: module.label(),
+            detail: "no tracked `.gitignore` ignores a `build` directory, so a configured build would appear in the candidate diff and no test command was proposed".to_string(),
+        });
+        return;
+    }
+
+    push(
+        survey,
+        command(
+            module,
+            Proposal {
+                suffix: "configure",
+                kind: CommandKind::Build,
+                program: "cmake",
+                args: &["-S", ".", "-B", "build"],
+                timeout_seconds: 900,
+                required: true,
+                report_format: ReportFormat::None,
+            },
+        ),
+    );
+    push(
+        survey,
+        command(
+            module,
+            Proposal {
+                suffix: "build",
+                kind: CommandKind::Build,
+                program: "cmake",
+                args: &["--build", "build"],
+                timeout_seconds: 1_800,
+                required: true,
+                report_format: ReportFormat::None,
+            },
+        ),
+    );
+    push(
+        survey,
+        command(
+            module,
+            Proposal {
+                suffix: "test",
+                kind: CommandKind::Test,
+                program: "ctest",
+                args: &[
+                    "--test-dir",
+                    "build",
+                    "--no-tests=error",
+                    "--output-on-failure",
+                ],
+                timeout_seconds: 1_800,
+                required: true,
+                report_format: ReportFormat::CTestText,
+            },
+        ),
+    );
 }

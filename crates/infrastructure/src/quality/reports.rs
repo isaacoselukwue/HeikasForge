@@ -506,3 +506,119 @@ pub fn parse_go_test_json(contents: &str) -> TestSummary {
     }
     summary
 }
+
+fn leading_count(text: &str) -> Option<u32> {
+    text.split_whitespace().next()?.parse::<u32>().ok()
+}
+
+pub fn parse_node_test_summary(contents: &str) -> TestSummary {
+    let mut summary = TestSummary::default();
+    for line in contents.lines() {
+        let trimmed = line.trim();
+
+        if let Some(rest) = trimmed.strip_prefix("# ") {
+            let mut parts = rest.split_whitespace();
+            if let (Some(label), Some(value)) = (parts.next(), parts.next()) {
+                if let Ok(count) = value.parse::<u32>() {
+                    match label {
+                        "pass" => summary.total += count,
+                        "fail" => {
+                            summary.total += count;
+                            summary.failed += count;
+                        }
+                        "skipped" | "todo" | "cancelled" => {
+                            summary.total += count;
+                            summary.skipped += count;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("Tests:") {
+            for field in rest.split(',') {
+                let field = field.trim();
+                let Some(count) = leading_count(field) else {
+                    continue;
+                };
+                if field.ends_with("passed") {
+                    summary.total += count;
+                } else if field.ends_with("failed") {
+                    summary.total += count;
+                    summary.failed += count;
+                } else if field.ends_with("skipped") || field.ends_with("todo") {
+                    summary.total += count;
+                    summary.skipped += count;
+                }
+            }
+            continue;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("Tests ") {
+            let head = rest.split('(').next().unwrap_or(rest);
+            for field in head.split('|') {
+                let field = field.trim();
+                let Some(count) = leading_count(field) else {
+                    continue;
+                };
+                if field.ends_with("passed") {
+                    summary.total += count;
+                } else if field.ends_with("failed") {
+                    summary.total += count;
+                    summary.failed += count;
+                } else if field.ends_with("skipped") || field.ends_with("todo") {
+                    summary.total += count;
+                    summary.skipped += count;
+                }
+            }
+            continue;
+        }
+
+        if trimmed.ends_with("passing") || trimmed.contains("passing (") {
+            if let Some(count) = leading_count(trimmed) {
+                summary.total += count;
+            }
+            continue;
+        }
+        if trimmed.ends_with("pending") {
+            if let Some(count) = leading_count(trimmed) {
+                summary.total += count;
+                summary.skipped += count;
+            }
+            continue;
+        }
+        if trimmed.ends_with("failing") {
+            if let Some(count) = leading_count(trimmed) {
+                summary.total += count;
+                summary.failed += count;
+            }
+        }
+    }
+    summary
+}
+
+pub fn parse_ctest_summary(contents: &str) -> TestSummary {
+    let mut summary = TestSummary::default();
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        let Some(index) = trimmed.find("tests passed,") else {
+            continue;
+        };
+        let rest = &trimmed[index + "tests passed,".len()..];
+        let mut parts = rest.split_whitespace();
+        let Some(failed) = parts.next().and_then(|value| value.parse::<u32>().ok()) else {
+            continue;
+        };
+        let total = rest
+            .split("out of")
+            .nth(1)
+            .and_then(leading_count)
+            .unwrap_or(failed);
+        summary.total = total;
+        summary.failed = failed;
+        return summary;
+    }
+    summary
+}

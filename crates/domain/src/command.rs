@@ -179,6 +179,8 @@ pub enum ReportFormat {
     CargoTestText,
     GoTestJson,
     PytestText,
+    NodeTestText,
+    CTestText,
     Text,
 }
 
@@ -193,6 +195,8 @@ impl ReportFormat {
             ReportFormat::CargoTestText => "cargo_test_text",
             ReportFormat::GoTestJson => "go_test_json",
             ReportFormat::PytestText => "pytest_text",
+            ReportFormat::NodeTestText => "node_test_text",
+            ReportFormat::CTestText => "ctest_text",
             ReportFormat::Text => "text",
         }
     }
@@ -206,6 +210,8 @@ impl ReportFormat {
                 | ReportFormat::CargoTestText
                 | ReportFormat::GoTestJson
                 | ReportFormat::PytestText
+                | ReportFormat::NodeTestText
+                | ReportFormat::CTestText
         )
     }
 
@@ -217,6 +223,8 @@ impl ReportFormat {
                 | ReportFormat::CargoTestText
                 | ReportFormat::GoTestJson
                 | ReportFormat::PytestText
+                | ReportFormat::NodeTestText
+                | ReportFormat::CTestText
         )
     }
 }
@@ -234,6 +242,8 @@ impl FromStr for ReportFormat {
             "cargo_test_text" => Ok(ReportFormat::CargoTestText),
             "go_test_json" => Ok(ReportFormat::GoTestJson),
             "pytest_text" => Ok(ReportFormat::PytestText),
+            "node_test_text" => Ok(ReportFormat::NodeTestText),
+            "ctest_text" => Ok(ReportFormat::CTestText),
             "text" => Ok(ReportFormat::Text),
             other => Err(DomainError::InvalidIdentifier {
                 kind: "ReportFormat",

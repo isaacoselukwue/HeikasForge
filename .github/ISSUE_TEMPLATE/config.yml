@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/isaacoselukwue/HeikasForge/security/advisories/new
+    about: Report privately so the problem stays confidential until a fix is available.
+  - name: Question or idea
+    url: https://github.com/isaacoselukwue/HeikasForge/discussions
+    about: Ask about usage, or discuss an idea before opening a request.

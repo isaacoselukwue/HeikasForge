@@ -1,0 +1,84 @@
+name: Bug report
+description: Something behaved differently from what the documentation describes
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report a security problem here. Follow the
+        [security policy](https://github.com/isaacoselukwue/HeikasForge/security/policy)
+        instead, so the report stays private until a fix is available.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: State the outcome you saw, not the code you suspect.
+      placeholder: A run on a Rust workspace stopped at the plan node without reporting a reason.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce it
+      description: >
+        Give the exact commands. If the repository shape matters, describe it, or link a
+        minimal example. A shape is often enough, for example a Cargo workspace with two
+        members and no tests.
+      value: |
+        1. `heikas init /path/to/repository`
+        2. `heikas run --repo /path/to/repository --task "..."`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnosis
+    attributes:
+      label: Output of `heikas doctor`
+      description: >
+        Run `heikas doctor /path/to/repository` and paste the result. It reports the
+        detected commands, the repository trust decision and the agent driver. Check it
+        for anything private before pasting.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v1.0.0, or the output of `git rev-parse --short HEAD`
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: dropdown
+    id: path
+    attributes:
+      label: Which path were you on
+      options:
+        - The free local path, with the built in local tool agent
+        - The deterministic demonstration agent
+        - An external coding command line adapter
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have checked that this is not a security problem.
+          required: true
+        - label: I have removed anything private from the output I pasted.
+          required: true

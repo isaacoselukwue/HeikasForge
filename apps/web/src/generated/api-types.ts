@@ -155,6 +155,8 @@ export type ReportFormat =
   | "cargo_test_text"
   | "go_test_json"
   | "pytest_text"
+  | "node_test_text"
+  | "c_test_text"
   | "text";
 export type RepositoryTrustState = "no_repository_configuration" | "trusted" | "untrusted";
 export type ContentDigest = string;

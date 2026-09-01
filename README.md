@@ -162,6 +162,50 @@ pnpm --dir apps/web capture     # regenerate the documentation media
 
 Frontend transport types are generated from the Rust JSON schemas into `apps/web/src/generated/`. There are no hand-written duplicate wire models.
 
+## Project detection
+
+Point Heikas Forge at a repository and it proposes the commands that gate a run. Detection
+surveys the tracked file listing rather than the working directory, because a candidate
+worktree is checked out from the baseline commit and holds nothing that is untracked or
+ignored.
+
+| Ecosystem | Recognised by | Test command | Executed count read from |
+| --- | --- | --- | --- |
+| Rust | `Cargo.toml` | `cargo test --workspace --no-fail-fast` | the cargo summary line |
+| Go | `go.mod` | `go test -count=1 -json ./...` | the test event stream |
+| Python | `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt`, with a tracked test file | `python3 -m pytest -q` | the pytest summary line |
+| Node | `package.json` with a test script, a recognised runner and a tracked lockfile | `<manager> run test` | the Vitest, Jest, Mocha or Node built in runner summary |
+| CMake | `CMakeLists.txt`, with a tracked ignore rule for the build directory | `ctest --test-dir build --no-tests=error` | the CTest summary line |
+
+Every proposed test command makes its executed count observable, and a required test
+command that executed nothing is recorded as missing evidence rather than as a pass.
+Skipped and ignored tests do not count as executed. Where a count cannot be obtained the
+detector declines and says why, rather than proposing a gate that cannot be checked.
+
+Detection proposes only bare executable names from a fixed set, and only arguments that
+are compile time constants. Repository content is read for the presence of a script or a
+lockfile, never for the identity of a program.
+
+Nothing needs to be detected to use the tool. Declare a command for a single run:
+
+```bash
+heikas run --repo . --task "Fix the rounding defect" \
+  --command test=pytest --command-arg test=-q \
+  --command lint=ruff --command-arg lint=check --command-arg lint=.
+```
+
+Or write `[[commands]]` entries into `.heikas/forge.toml` and accept them with
+`heikas trust .`.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development
+setup, the verification command and the conformance rules the repository enforces, and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for the standards expected of participants.
+
+Please report a security problem privately through the
+[security policy](SECURITY.md) rather than in a public issue.
+
 ## Status and limitations
 
 The orchestration core, durable persistence and recovery, Git isolation, quality gates, scoring, the loopback API, the control room and the command line application are implemented and covered by the test suite.
@@ -170,7 +214,10 @@ Honest limitations:
 
 - A local model still has to be capable enough to solve your task. Heikas Forge validates that the selected model makes reliable structured tool calls, but it cannot make a small model competent.
 - The demonstration fixture replays a recorded script. It proves the orchestration, persistence, gates and selection are real. It does not prove any particular model performs well.
-- Windows support is implemented through Job Objects and is built in continuous integration, but the process-tree and Git behaviour has been exercised most heavily on Linux.
+- Windows support is implemented through Job Objects and the full test suite runs on Windows in continuous integration, but the process-tree and Git behaviour has been exercised most heavily on Linux.
+- The Go detector's event stream parser is covered by unit tests against captured output, but no Go toolchain was available where this was developed, so the Go path has not been exercised end to end.
+- An executed test count is read from the test command's own output. It is a guard against a repository that has no tests, not against one that misreports, because running a project's tests runs that project's code. See [`docs/architecture/quality-providers.md`](docs/architecture/quality-providers.md).
+- A repository whose build system is not in the table above, such as Bazel, Gradle, Maven or a bare Makefile, is declined with the reason and must have its command declared.
 - SonarQube integration expects a self-managed instance you provide. It is never required.
 - Merge conflicts during integration are not repaired by an agent. The candidate is marked non-promotable and the next ranked candidate is tried.
 - There is no multi-user mode, no remote execution and no automatic pushing or pull request creation.

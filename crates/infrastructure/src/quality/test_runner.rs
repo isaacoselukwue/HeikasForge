@@ -14,8 +14,9 @@ use heikas_domain::test_evidence::{
 };
 
 use crate::quality::reports::{
-    parse_cargo_test_json, parse_cargo_test_summary, parse_go_test_json, parse_junit_xml,
-    parse_lcov_coverage, parse_pytest_summary, TestSummary,
+    parse_cargo_test_json, parse_cargo_test_summary, parse_ctest_summary, parse_go_test_json,
+    parse_junit_xml, parse_lcov_coverage, parse_node_test_summary, parse_pytest_summary,
+    TestSummary,
 };
 
 pub struct CommandTestGateRunner {
@@ -129,6 +130,12 @@ pub fn build_record(
         }
         ReportFormat::PytestText => {
             summary = parse_pytest_summary(&outcome.stdout_text());
+        }
+        ReportFormat::NodeTestText => {
+            summary = parse_node_test_summary(&outcome.stdout_text());
+        }
+        ReportFormat::CTestText => {
+            summary = parse_ctest_summary(&outcome.stdout_text());
         }
         ReportFormat::JUnitXml => match read_report(&context.worktree, specification)? {
             Some(contents) => {

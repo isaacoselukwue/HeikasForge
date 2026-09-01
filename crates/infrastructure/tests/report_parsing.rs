@@ -113,3 +113,87 @@ fn a_suite_in_which_everything_is_skipped_reports_no_executed_tests() {
     ));
     assert_eq!(go.total - go.skipped, 0);
 }
+
+use heikas_infrastructure::quality::reports::{parse_ctest_summary, parse_node_test_summary};
+
+#[test]
+fn the_node_builtin_runner_summary_is_read() {
+    let stdout = concat!(
+        "1..3\n# tests 3\n# suites 0\n# pass 2\n# fail 0\n",
+        "# cancelled 0\n# skipped 1\n# todo 0\n# duration_ms 49.2\n",
+    );
+    let summary = parse_node_test_summary(stdout);
+    assert_eq!(summary.total, 3);
+    assert_eq!(summary.failed, 0);
+    assert_eq!(summary.skipped, 1);
+    assert_eq!(summary.total - summary.skipped, 2);
+}
+
+#[test]
+fn the_vitest_summary_is_read_in_each_shape() {
+    let mixed = parse_node_test_summary(
+        " Test Files  1 passed (1)\n      Tests  2 passed | 1 skipped (3)\n",
+    );
+    assert_eq!(mixed.total, 3);
+    assert_eq!(mixed.skipped, 1);
+    assert_eq!(mixed.failed, 0);
+
+    let plain = parse_node_test_summary("      Tests  3 passed (3)\n");
+    assert_eq!(plain.total, 3);
+    assert_eq!(plain.skipped, 0);
+
+    let failing = parse_node_test_summary(
+        " Test Files  1 failed (1)\n      Tests  1 failed | 1 passed (2)\n",
+    );
+    assert_eq!(failing.total, 2);
+    assert_eq!(failing.failed, 1);
+}
+
+#[test]
+fn the_jest_summary_is_read() {
+    let summary = parse_node_test_summary(
+        "Test Suites: 1 passed, 1 total\nTests:       1 skipped, 2 passed, 3 total\nSnapshots:   0 total\n",
+    );
+    assert_eq!(summary.total, 3);
+    assert_eq!(summary.skipped, 1);
+    assert_eq!(summary.total - summary.skipped, 2);
+}
+
+#[test]
+fn the_mocha_summary_is_read() {
+    let summary = parse_node_test_summary("  2 passing (3ms)\n  1 pending\n");
+    assert_eq!(summary.total, 3);
+    assert_eq!(summary.skipped, 1);
+
+    let failing = parse_node_test_summary("  1 passing (3ms)\n  2 failing\n");
+    assert_eq!(failing.total, 3);
+    assert_eq!(failing.failed, 2);
+}
+
+#[test]
+fn a_node_run_that_executed_nothing_yields_no_executed_tests() {
+    let vitest = parse_node_test_summary("No test files found, exiting with code 1\n");
+    assert_eq!(vitest.total, 0);
+
+    let all_skipped = parse_node_test_summary("      Tests  3 skipped (3)\n");
+    assert_eq!(all_skipped.total - all_skipped.skipped, 0);
+
+    let unrecognised = parse_node_test_summary("some runner nobody has heard of finished\n");
+    assert_eq!(
+        unrecognised.total, 0,
+        "an unrecognised summary must fail the gate rather than pass it"
+    );
+}
+
+#[test]
+fn the_ctest_summary_is_read() {
+    let passing = parse_ctest_summary("100% tests passed, 0 tests failed out of 12\n");
+    assert_eq!(passing.total, 12);
+    assert_eq!(passing.failed, 0);
+
+    let mixed = parse_ctest_summary("50% tests passed, 1 tests failed out of 2\n");
+    assert_eq!(mixed.total, 2);
+    assert_eq!(mixed.failed, 1);
+
+    assert_eq!(parse_ctest_summary("Errors while running CTest\n").total, 0);
+}
